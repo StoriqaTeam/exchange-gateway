@@ -1,0 +1,45 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: exchange-gateway
+  labels:
+    stack: exchange
+    app: gateway
+spec:
+  selector:
+    matchLabels:
+      app: gateway
+      stack: exchange
+  replicas: 1
+  template:
+    metadata:
+      name: exchange-gateway
+      labels:
+        app: gateway
+        stack: exchange
+    spec:
+      imagePullSecrets:
+      - name: stq
+      containers:
+      - name: gateway
+        image: storiqateam/exchange-gateway
+        ports:
+        - containerPort: 8000
+        env:
+        - name: RUN_MODE
+          value: k8s
+        - name: RUST_BACKTRACE
+          value: "1"
+        - name: RUST_LOG
+          value: exchange=debug
+        - name: DATABASE_HOST
+          value: postgres
+        - name: DATABASE_URL
+          value: postgresql://gateway:gateway@postgres/gateway
+        volumeMounts:
+        - name: conf
+          mountPath: /app/config/
+      volumes:
+      - name: conf
+        configMap:
+          name: exchange-gateway

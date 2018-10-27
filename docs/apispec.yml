@@ -1,0 +1,230 @@
+openapi: 3.0.0
+servers:
+  - url: 'https://exchange.storiqa.com/v1'
+  - url: 'http://exchange.storiqa.com/v1'
+info:
+  description: Api server for currency exchange.
+  version: "1.0.1"
+  title: Exchange
+  contact:
+    email: s.efremov@storiqa.com
+tags:
+  - name: exchange
+    description: Get, sell, exchange.
+paths:
+  /exchange:
+    post:
+      summary: Sell funds
+      tags:
+        - exchange
+      responses:
+        200:
+          description: Ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellOrder'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        500:
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SellInput'
+    get:
+      summary: Returns currency exchange rate
+      tags:
+        - exchange
+      parameters:
+        - $ref: '#/components/parameters/fromCurrencyParam'
+        - $ref: '#/components/parameters/toCurrencyParam'
+        - $ref: '#/components/parameters/amountParam'
+      responses:
+        200:
+          description: Ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Exchange'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        500:
+          $ref: '#/components/responses/Internal'
+components:
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            description: Error that comes with 404 status
+            properties:
+              code:
+                type: string
+                example: 404
+
+              description:
+                type: string
+                example: Not found
+
+    BadRequest:
+      description: Most likely malformed json (this includes violating schema in terms of required fields, but not validations)
+      content:
+        application/json:
+          schema:
+            type: object
+            description: Error that comes with 400 status
+            properties:
+
+              description:
+                type: string
+                example: Bad request
+    Unauthorized:
+      description: Unauthorized to perform action
+      content:
+        application/json:
+          schema:
+            type: object
+            description: Error that comes with 401 status
+            properties:
+
+              description:
+                type: string
+                example: Unauthorized
+    Internal:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            description: Error that comes with 500 status
+            properties:
+              description:
+                type: string
+                example: Internal server error
+
+
+
+  schemas:
+    SellOrder:
+      type: object
+      description: >
+        Sell order.
+      properties:
+        id:
+          $ref: '#/components/schemas/AccountAddress'
+        from:
+          $ref: '#/components/schemas/AccountAddress'
+        to:
+          $ref: '#/components/schemas/AccountAddress'
+        toCurrency:
+          $ref: '#/components/schemas/Currency'
+        fromCurrency:
+          $ref: '#/components/schemas/Currency'
+        amount:
+          $ref: '#/components/schemas/Value'
+        rate:
+          $ref: '#/components/schemas/Rate'
+    Exchange:
+      type: object
+      description: >
+        Current exchange rate.
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        from:
+          $ref: '#/components/schemas/AccountAddress'
+        to:
+          $ref: '#/components/schemas/AccountAddress'
+        toCurrency:
+          $ref: '#/components/schemas/Currency'
+        fromCurrency:
+          $ref: '#/components/schemas/Currency'
+        amount:
+          $ref: '#/components/schemas/Value'
+        rate:
+          $ref: '#/components/schemas/Rate'
+        reserved_for:
+          type: number
+          description: >
+            Rate reservation time in seconds.
+        created_at:
+          $ref: '#/components/schemas/TimeStamp'
+        updated_at:
+          $ref: '#/components/schemas/TimeStamp'
+    Value:
+      type: string
+      description: Monetary value - either fiat or blockchain
+      example: 185000000000000000000
+    SellInput:
+      type: object
+      required:
+        - fromCurrency
+        - toCurrency
+        - amount
+        - rate
+        - to
+        - from
+      properties:
+        from:
+          $ref: '#/components/schemas/AccountAddress'
+        to:
+          $ref: '#/components/schemas/AccountAddress'
+        toCurrency:
+          $ref: '#/components/schemas/Currency'
+        fromCurrency:
+          $ref: '#/components/schemas/Currency'
+        amount:
+          $ref: '#/components/schemas/Value'
+        rate:
+          $ref: '#/components/schemas/Rate'
+    AccountAddress:
+      type: string
+      description: Either blockchain address or fiat account number (depending on currency)
+      example: '0x89595fa59d69d696d9d96'
+    Currency:
+      type: string
+      description: >-
+        ISO 4217 alphabetic code for fiat currencies in CAPS
+        [source](https://www.currency-iso.org/en/home/tables/table-a1.html). Or
+        Coinmarketcap symbol in lower case [source](https://coinmarketcap.com/)
+      example: eth
+    Id:
+      type: string
+      example: jghkdfgdjfgkdf7gd
+    Rate:
+      type: number
+      description: exchange rate
+    TimeStamp:
+      type: number
+      description: unix timestamp
+  securitySchemes:
+    Bearer:
+      type: apiKey
+      name: Authorization
+      in: header
+  parameters:
+    fromCurrencyParam:
+      name: fromCurrency
+      in: query
+      description: currency exchange from
+      required: true
+      schema:
+        $ref: '#/components/schemas/Currency'
+    toCurrencyParam:
+      name: toCurrency
+      in: query
+      description: currency exchange to
+      required: true
+      schema:
+        $ref: '#/components/schemas/Currency'
+    amountParam:
+      name: amount
+      in: query
+      description: amount exchange to
+      required: true
+      schema:
+        $ref: '#/components/schemas/Value'

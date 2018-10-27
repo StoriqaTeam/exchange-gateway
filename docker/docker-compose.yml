@@ -1,0 +1,43 @@
+version: '3'
+services:
+  exchange-gateway:
+    image: exchange-gateway
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    container_name: exchange-gateway
+    working_dir: /app
+    entrypoint:
+      - sh
+      - -c
+      - sleep 10; diesel migration run; /usr/local/cargo/bin/cargo run server
+    volumes:
+      - ..:/app
+    environment:
+      - DATABASE_URL=postgresql://exchange-gateway:exchange-gateway@exchange-gateway-pg/exchange-gateway
+      - "RUST_LOG=exchange_gateway=debug"
+    expose:
+      - 8000
+    stdin_open: true
+    depends_on:
+      - exchange-gateway-pg
+
+  exchange-gateway-pg:
+    image: postgres:10
+    container_name: exchange-gateway-pg
+    volumes:
+      - stq-exchange-gateway-postgres-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=exchange-gateway
+      - POSTGRES_DB=exchange-gateway
+      - POSTGRES_PASSWORD=exchange-gateway
+    expose:
+      - 5432
+
+volumes:
+  stq-exchange-gateway-postgres-data:
+
+networks:
+  default:
+    external:
+      name: payments
