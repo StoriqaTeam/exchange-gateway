@@ -2,6 +2,8 @@ openapi: 3.0.0
 servers:
   - url: 'https://exchange.storiqa.com/v1'
   - url: 'http://exchange.storiqa.com/v1'
+  - url: 'https://exchange.stq.cloud/v1'
+  - url: 'http://exchange.stq.cloud/v1'
 info:
   description: Api server for currency exchange.
   version: "1.0.1"
@@ -14,7 +16,9 @@ tags:
 paths:
   /exchange:
     post:
-      summary: Sell funds
+      summary: Exchange funds
+      security: 
+        - Bearer: []
       tags:
         - exchange
       responses:
@@ -23,36 +27,47 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SellOrder'
+                $ref: '#/components/schemas/ExchangeResponse'
         400:
           $ref: '#/components/responses/BadRequest'
+        422:
+          $ref: '#/components/responses/UnprocessableEntity'
         500:
           $ref: '#/components/responses/Internal'
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SellInput'
-    get:
-      summary: Returns currency exchange rate
+              $ref: '#/components/schemas/ExchangeInput'
+  /rate:
+    post:
+      summary: Reserves exchange rate for a period of time
+      security: 
+        - Bearer: []
       tags:
         - exchange
-      parameters:
-        - $ref: '#/components/parameters/fromCurrencyParam'
-        - $ref: '#/components/parameters/toCurrencyParam'
-        - $ref: '#/components/parameters/amountParam'
       responses:
         200:
           description: Ok
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Exchange'
+                $ref: '#/components/schemas/RateResponse'
         401:
           $ref: '#/components/responses/Unauthorized'
         500:
           $ref: '#/components/responses/Internal'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RateInput'
 components:
+  securitySchemes:
+    Bearer:
+      type: apiKey
+      name: Authorization
+      in: header
   responses:
     NotFound:
       description: Resource not found
@@ -82,6 +97,18 @@ components:
               description:
                 type: string
                 example: Bad request
+    UnprocessableEntity:
+      description: Inputs were ok, but service was unable to process request. E.g. when we cannot exchange at the desired rate that we promised
+      content:
+        application/json:
+          schema:
+            type: object
+            description: Error that comes with 422 status
+            properties:
+
+              description:
+                type: string
+                example: Unprocessable entity
     Unauthorized:
       description: Unauthorized to perform action
       content:
@@ -109,78 +136,82 @@ components:
 
 
   schemas:
-    SellOrder:
+    ExchangeResponse:
       type: object
       description: >
         Sell order.
       properties:
         id:
-          $ref: '#/components/schemas/AccountAddress'
+          $ref: '#/components/schemas/Uuid'
         from:
-          $ref: '#/components/schemas/AccountAddress'
-        to:
-          $ref: '#/components/schemas/AccountAddress'
-        toCurrency:
           $ref: '#/components/schemas/Currency'
-        fromCurrency:
+        to:
           $ref: '#/components/schemas/Currency'
         amount:
           $ref: '#/components/schemas/Value'
-        rate:
+        actualRate:
           $ref: '#/components/schemas/Rate'
-    Exchange:
+    RateResponse:
       type: object
       description: >
         Current exchange rate.
       properties:
         id:
-          $ref: '#/components/schemas/Id'
+          $ref: '#/components/schemas/Uuid'
         from:
-          $ref: '#/components/schemas/AccountAddress'
-        to:
-          $ref: '#/components/schemas/AccountAddress'
-        toCurrency:
           $ref: '#/components/schemas/Currency'
-        fromCurrency:
+        to:
           $ref: '#/components/schemas/Currency'
         amount:
           $ref: '#/components/schemas/Value'
         rate:
           $ref: '#/components/schemas/Rate'
-        reserved_for:
-          type: number
-          description: >
-            Rate reservation time in seconds.
-        created_at:
+        expiration:
           $ref: '#/components/schemas/TimeStamp'
-        updated_at:
+        createdAt:
+          $ref: '#/components/schemas/TimeStamp'
+        updatedAt:
           $ref: '#/components/schemas/TimeStamp'
     Value:
-      type: string
+      type: number
       description: Monetary value - either fiat or blockchain
       example: 185000000000000000000
-    SellInput:
+    ExchangeInput:
       type: object
       required:
-        - fromCurrency
-        - toCurrency
-        - amount
-        - rate
-        - to
+        - id
         - from
+        - to
+        - rate
+        - actualAmount
       properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
         from:
-          $ref: '#/components/schemas/AccountAddress'
-        to:
-          $ref: '#/components/schemas/AccountAddress'
-        toCurrency:
           $ref: '#/components/schemas/Currency'
-        fromCurrency:
+        to:
+          $ref: '#/components/schemas/Currency'
+        rate:
+          $ref: '#/components/schemas/Rate'
+        actualAmount:
+          $ref: '#/components/schemas/Value'
+    RateInput:
+      type: object
+      required:
+        - id
+        - from
+        - to
+        - amount
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        from:
+          $ref: '#/components/schemas/Currency'
+        to:
           $ref: '#/components/schemas/Currency'
         amount:
           $ref: '#/components/schemas/Value'
-        rate:
-          $ref: '#/components/schemas/Rate'
+
     AccountAddress:
       type: string
       description: Either blockchain address or fiat account number (depending on currency)
@@ -192,39 +223,15 @@ components:
         [source](https://www.currency-iso.org/en/home/tables/table-a1.html). Or
         Coinmarketcap symbol in lower case [source](https://coinmarketcap.com/)
       example: eth
-    Id:
+    Uuid:
       type: string
-      example: jghkdfgdjfgkdf7gd
+      description: Uuid v4
+      example: '5188dde0-9dc3-461f-b272-dd3b1398c1dc'
     Rate:
       type: number
       description: exchange rate
+      example: 0.0025
     TimeStamp:
       type: number
       description: unix timestamp
-  securitySchemes:
-    Bearer:
-      type: apiKey
-      name: Authorization
-      in: header
-  parameters:
-    fromCurrencyParam:
-      name: fromCurrency
-      in: query
-      description: currency exchange from
-      required: true
-      schema:
-        $ref: '#/components/schemas/Currency'
-    toCurrencyParam:
-      name: toCurrency
-      in: query
-      description: currency exchange to
-      required: true
-      schema:
-        $ref: '#/components/schemas/Currency'
-    amountParam:
-      name: amount
-      in: query
-      description: amount exchange to
-      required: true
-      schema:
-        $ref: '#/components/schemas/Value'
+      example: 157239470
