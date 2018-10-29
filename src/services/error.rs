@@ -3,6 +3,7 @@ use std::fmt::Display;
 
 use failure::{Backtrace, Context, Fail};
 use serde_json;
+use validator::ValidationErrors;
 
 use client::exmo::ErrorKind as ExmoClientErrorKind;
 use repos::{Error as ReposError, ErrorKind as ReposErrorKind};
@@ -20,7 +21,7 @@ pub enum ErrorKind {
     #[fail(display = "service error - malformed input")]
     MalformedInput,
     #[fail(display = "service error - invalid input, errors: {}", _0)]
-    InvalidInput(serde_json::Value),
+    InvalidInput(ValidationErrors),
     #[fail(display = "service error - internal error")]
     Internal,
     #[fail(display = "service error - not found")]
@@ -50,9 +51,7 @@ impl From<ReposErrorKind> for ErrorKind {
         match e {
             ReposErrorKind::Internal => ErrorKind::Internal,
             ReposErrorKind::Unauthorized => ErrorKind::Unauthorized,
-            ReposErrorKind::Constraints(validation_errors) => {
-                ErrorKind::InvalidInput(serde_json::to_value(&validation_errors).unwrap_or_default())
-            }
+            ReposErrorKind::Constraints(validation_errors) => ErrorKind::InvalidInput(validation_errors),
         }
     }
 }
@@ -63,7 +62,6 @@ impl From<ExmoClientErrorKind> for ErrorKind {
             ExmoClientErrorKind::Internal => ErrorKind::Internal,
             ExmoClientErrorKind::Unauthorized => ErrorKind::Unauthorized,
             ExmoClientErrorKind::MalformedInput => ErrorKind::MalformedInput,
-            ExmoClientErrorKind::Validation(s) => ErrorKind::InvalidInput(s),
         }
     }
 }

@@ -18,8 +18,6 @@ pub enum ErrorKind {
     Unauthorized,
     #[fail(display = "exmo client error - internal error")]
     Internal,
-    #[fail(display = "exmo client error - bad request")]
-    Validation(serde_json::Value),
 }
 
 #[allow(dead_code)]
