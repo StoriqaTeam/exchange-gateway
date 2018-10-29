@@ -30,10 +30,9 @@ impl<'a> ExchangesRepo for ExchangesRepoImpl {
     fn get(&self, req: GetExchange) -> RepoResult<Option<Exchange>> {
         with_tls_connection(|conn| {
             exchanges
-                .filter(from_currency.eq(req.from_currency))
-                .filter(to_currency.eq(req.to_currency))
-                .filter(amount.eq(req.amount))
-                .filter(rate.ge(req.rate))
+                .filter(id.eq(req.id))
+                .filter(from_.eq(req.from))
+                .filter(to_.eq(req.to))
                 .limit(1)
                 .get_result(conn)
                 .optional()

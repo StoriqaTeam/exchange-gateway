@@ -78,9 +78,8 @@ impl ExchangesRepo for ExchangesRepoMock {
         let data = self.data.lock().unwrap();
         Ok(data
             .iter()
-            .filter(|x| {
-                x.from_currency == req.from_currency && x.to_currency == req.to_currency && x.amount == req.amount && x.rate >= req.rate
-            }).nth(0)
+            .filter(|x| x.from_ == req.from && x.to_ == req.to && x.id == req.id)
+            .nth(0)
             .cloned())
     }
 }

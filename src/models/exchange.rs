@@ -8,11 +8,12 @@ use schema::exchanges;
 #[derive(Debug, Queryable, Clone)]
 pub struct Exchange {
     pub id: ExchangeId,
-    pub from_currency: Currency,
-    pub to_currency: Currency,
+    pub from_: Currency,
+    pub to_: Currency,
     pub amount: Amount,
-    pub reserved_for: i32,
+    pub expiration: SystemTime,
     pub rate: f64,
+    pub user_id: UserId,
     pub created_at: SystemTime,
     pub updated_at: SystemTime,
 }
@@ -21,11 +22,12 @@ impl Default for Exchange {
     fn default() -> Self {
         Self {
             id: ExchangeId::generate(),
-            from_currency: Currency::Eth,
-            to_currency: Currency::Btc,
+            from_: Currency::Eth,
+            to_: Currency::Btc,
             amount: Amount::default(),
-            reserved_for: 600,
+            expiration: SystemTime::now(),
             rate: 0.34343,
+            user_id: UserId::generate(),
             created_at: SystemTime::now(),
             updated_at: SystemTime::now(),
         }
@@ -36,11 +38,12 @@ impl From<NewExchange> for Exchange {
     fn from(new_exchange: NewExchange) -> Self {
         Self {
             id: new_exchange.id,
-            from_currency: new_exchange.from_currency,
-            to_currency: new_exchange.to_currency,
+            from_: new_exchange.from_,
+            to_: new_exchange.to_,
             amount: new_exchange.amount,
             rate: new_exchange.rate,
-            reserved_for: new_exchange.reserved_for,
+            expiration: new_exchange.expiration,
+            user_id: new_exchange.user_id,
             ..Default::default()
         }
     }
@@ -50,42 +53,44 @@ impl From<NewExchange> for Exchange {
 #[table_name = "exchanges"]
 pub struct NewExchange {
     pub id: ExchangeId,
-    pub from_currency: Currency,
-    pub to_currency: Currency,
+    pub from_: Currency,
+    pub to_: Currency,
     pub amount: Amount,
-    pub reserved_for: i32,
+    pub expiration: SystemTime,
     pub rate: f64,
+    pub user_id: UserId,
 }
 
 impl Default for NewExchange {
     fn default() -> Self {
         Self {
             id: ExchangeId::generate(),
-            from_currency: Currency::Eth,
-            to_currency: Currency::Btc,
+            from_: Currency::Eth,
+            to_: Currency::Btc,
             amount: Amount::default(),
-            reserved_for: 600,
+            expiration: SystemTime::now(),
             rate: 0.34343,
+            user_id: UserId::generate(),
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct CreateSellOrder {
-    pub from_currency: Currency,
-    pub to_currency: Currency,
-    pub amount: Amount,
+    pub id: ExchangeId,
+    pub from: Currency,
+    pub to: Currency,
+    pub actual_amount: Amount,
     pub rate: f64,
-    pub to: AccountAddress,
-    pub from: AccountAddress,
 }
 
 impl From<CreateSellOrder> for GetExchange {
     fn from(sell: CreateSellOrder) -> Self {
         Self {
-            from_currency: sell.from_currency,
-            to_currency: sell.to_currency,
-            amount: sell.amount,
+            id: sell.id,
+            from: sell.from,
+            to: sell.to,
+            actual_amount: sell.actual_amount,
             rate: sell.rate,
         }
     }
@@ -94,30 +99,31 @@ impl From<CreateSellOrder> for GetExchange {
 impl Default for CreateSellOrder {
     fn default() -> Self {
         Self {
-            from_currency: Currency::Eth,
-            to_currency: Currency::Btc,
-            amount: Amount::default(),
+            id: ExchangeId::generate(),
+            from: Currency::Eth,
+            to: Currency::Btc,
+            actual_amount: Amount::default(),
             rate: 0.333,
-            to: AccountAddress::default(),
-            from: AccountAddress::default(),
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct GetExchange {
-    pub from_currency: Currency,
-    pub to_currency: Currency,
-    pub amount: Amount,
+    pub id: ExchangeId,
+    pub from: Currency,
+    pub to: Currency,
+    pub actual_amount: Amount,
     pub rate: f64,
 }
 
 impl Default for GetExchange {
     fn default() -> Self {
         Self {
-            from_currency: Currency::Eth,
-            to_currency: Currency::Btc,
-            amount: Amount::default(),
+            id: ExchangeId::generate(),
+            from: Currency::Eth,
+            to: Currency::Btc,
+            actual_amount: Amount::default(),
             rate: 0.34343,
         }
     }
@@ -126,40 +132,40 @@ impl Default for GetExchange {
 #[derive(Debug, Clone)]
 pub struct SellOrder {
     pub id: BlockchainTransactionId,
-    pub from_currency: Currency,
-    pub to_currency: Currency,
+    pub from: Currency,
+    pub to: Currency,
     pub amount: Amount,
     pub rate: f64,
-    pub to: AccountAddress,
-    pub from: AccountAddress,
 }
 
-#[derive(Debug, Insertable, Validate, Clone)]
-#[table_name = "exchanges"]
-pub struct ExchangeRequest {
-    pub from_currency: Currency,
-    pub to_currency: Currency,
+#[derive(Debug, Clone)]
+pub struct GetRate {
+    pub id: ExchangeId,
+    pub from: Currency,
+    pub to: Currency,
     pub amount: Amount,
 }
 
 impl NewExchange {
-    pub fn new(req: ExchangeRequest, reserved_for: i32, rate: f64) -> Self {
+    pub fn new(req: GetRate, expiration: SystemTime, rate: f64, user_id: UserId) -> Self {
         Self {
             id: ExchangeId::generate(),
-            from_currency: req.from_currency,
-            to_currency: req.to_currency,
+            from_: req.from,
+            to_: req.to,
             amount: req.amount,
-            reserved_for,
+            expiration,
             rate,
+            user_id,
         }
     }
 }
 
-impl Default for ExchangeRequest {
+impl Default for GetRate {
     fn default() -> Self {
         Self {
-            from_currency: Currency::Eth,
-            to_currency: Currency::Btc,
+            id: ExchangeId::generate(),
+            from: Currency::Eth,
+            to: Currency::Btc,
             amount: Amount::default(),
         }
     }

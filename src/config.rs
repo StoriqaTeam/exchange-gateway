@@ -29,8 +29,9 @@ pub struct Auth {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Options {
-    pub rate_reserved_for_sec: i32,
-    pub rate_power_koef: f64,
+    pub expiration: u64, // seconds
+    pub rate_upside: f64,
+    pub safety_threshold: f64,
 }
 
 #[derive(Debug, Deserialize, Clone)]

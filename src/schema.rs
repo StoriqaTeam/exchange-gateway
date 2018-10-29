@@ -1,11 +1,12 @@
 table! {
     exchanges (id) {
         id -> Uuid,
-        from_currency -> Varchar,
-        to_currency -> Varchar,
+        from_ -> Varchar,
+        to_ -> Varchar,
         amount -> Numeric,
-        reserved_for -> Int4,
+        expiration -> Timestamp,
         rate -> Float8,
+        user_id -> Uuid,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }

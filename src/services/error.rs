@@ -2,7 +2,6 @@ use std::fmt;
 use std::fmt::Display;
 
 use failure::{Backtrace, Context, Fail};
-use serde_json;
 use validator::ValidationErrors;
 
 use client::exmo::ErrorKind as ExmoClientErrorKind;
@@ -35,6 +34,8 @@ pub enum ErrorContext {
     Internal,
     #[fail(display = "service error context - no exchange rate found")]
     NoExchangeRate,
+    #[fail(display = "service error context - invalid auth token")]
+    InvalidToken,
 }
 
 derive_error_impls!();

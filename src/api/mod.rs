@@ -15,7 +15,7 @@ use r2d2::Pool;
 use super::config::Config;
 use super::utils::{log_and_capture_error, log_error, log_warn};
 use client::{ExmoClient, ExmoClientImpl, HttpClientImpl};
-use repos::{DbExecutorImpl, ExchangesRepoImpl};
+use repos::{DbExecutorImpl, ExchangesRepoImpl, UsersRepoImpl};
 use utils::read_body;
 
 mod controllers;
@@ -27,7 +27,7 @@ mod utils;
 use self::controllers::*;
 use self::error::*;
 use r2d2;
-use services::ExchangeServiceImpl;
+use services::{AuthServiceImpl, ExchangeServiceImpl, UsersServiceImpl};
 
 #[derive(Clone)]
 pub struct ApiService {
@@ -80,23 +80,28 @@ impl Service for ApiService {
         let db_pool = self.db_pool.clone();
         let cpu_pool = self.cpu_pool.clone();
         let db_executor = DbExecutorImpl::new(db_pool.clone(), cpu_pool.clone());
-        let reserved_for = self.config.exchange_options.rate_reserved_for_sec;
+        let expiration = self.config.exchange_options.expiration;
 
         Box::new(
             read_body(http_body)
                 .map_err(ectx!(ErrorSource::Hyper, ErrorKind::Internal))
                 .and_then(move |body| {
                     let router = router! {
+                        POST /v1/users => post_users,
+                        GET /v1/users/me => get_users_me,
                         POST /v1/exchange => post_exchange,
-                        GET /v1/exchange => get_exchange,
+                        POST /v1/rate => post_rate,
                         _ => not_found,
                     };
+                    let auth_service = Arc::new(AuthServiceImpl::new(Arc::new(UsersRepoImpl), db_executor.clone()));
+                    let users_service = Arc::new(UsersServiceImpl::new(Arc::new(UsersRepoImpl), db_executor.clone()));
 
                     let exchange_service = Arc::new(ExchangeServiceImpl::new(
+                        auth_service,
                         Arc::new(ExchangesRepoImpl),
                         db_executor.clone(),
                         exmo_client.clone(),
-                        reserved_for,
+                        expiration,
                     ));
 
                     let ctx = Context {
@@ -104,6 +109,7 @@ impl Service for ApiService {
                         method: parts.method.clone(),
                         uri: parts.uri.clone(),
                         headers: parts.headers,
+                        users_service,
                         exchange_service,
                     };
 

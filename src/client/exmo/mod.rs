@@ -17,12 +17,14 @@ use utils::read_body;
 
 pub trait ExmoClient: Send + Sync + 'static {
     fn sell(&self, input: ExmoCreateSellOrder) -> Box<Future<Item = ExmoSellOrderResponse, Error = Error> + Send>;
-    fn get_rate(&self, get: ExchangeRequest) -> Box<Future<Item = ExmoGetExchangeResponse, Error = Error> + Send>;
+    fn get_rate(&self, get: GetRate) -> Box<Future<Item = ExmoGetExchangeResponse, Error = Error> + Send>;
 }
 
 pub struct ExmoClientImpl {
     cli: Arc<HttpClient>,
     exmo_url: String,
+    rate_upside: f64,
+    safety_threshold: f64,
     api_key: String,
     api_secret: String,
 }
@@ -34,6 +36,8 @@ impl ExmoClientImpl {
             exmo_url: config.client.exmo_url.clone(),
             api_key: config.auth.exmo_api_key.clone(),
             api_secret: config.auth.exmo_api_secret.clone(),
+            rate_upside: config.exchange_options.rate_upside,
+            safety_threshold: config.exchange_options.safety_threshold,
         }
     }
 
@@ -73,9 +77,13 @@ impl ExmoClientImpl {
 
 impl ExmoClient for ExmoClientImpl {
     fn sell(&self, input: ExmoCreateSellOrder) -> Box<Future<Item = ExmoSellOrderResponse, Error = Error> + Send> {
+        let rate_upside = self.rate_upside;
+        let safety_threshold = self.safety_threshold;
         unimplemented!()
     }
-    fn get_rate(&self, get: ExchangeRequest) -> Box<Future<Item = ExmoGetExchangeResponse, Error = Error> + Send> {
+    fn get_rate(&self, get: GetRate) -> Box<Future<Item = ExmoGetExchangeResponse, Error = Error> + Send> {
+        let rate_upside = self.rate_upside;
+        let safety_threshold = self.safety_threshold;
         unimplemented!()
     }
     // fn confirm_reset_password(&self, reset: ResetPasswordConfirm) -> Box<Future<Item = ExmoJWT, Error = Error> + Send> {
@@ -108,7 +116,7 @@ impl ExmoClient for ExmoClientMock {
     fn sell(&self, _input: ExmoCreateSellOrder) -> Box<Future<Item = ExmoSellOrderResponse, Error = Error> + Send> {
         Box::new(Ok(ExmoSellOrderResponse::default()).into_future())
     }
-    fn get_rate(&self, _get: ExchangeRequest) -> Box<Future<Item = ExmoGetExchangeResponse, Error = Error> + Send> {
+    fn get_rate(&self, _get: GetRate) -> Box<Future<Item = ExmoGetExchangeResponse, Error = Error> + Send> {
         Box::new(Ok(ExmoGetExchangeResponse::default()).into_future())
     }
 }

@@ -17,5 +17,6 @@ url = "postgresql://exchange-gateway:exchange-gateway@exchange-gateway-pg/exchan
 size = 1
 
 [exchange_options]
-rate_reserved_for_sec = 600
-rate_power_koef = 1.2
+expiration = 300 # 5 minutes
+rate_upside = 0.1 # 10%
+safety_threshold = 0.05 # 5%
