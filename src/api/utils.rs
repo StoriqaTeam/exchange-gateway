@@ -1,12 +1,14 @@
-use super::error::*;
-use super::ControllerFuture;
+use std::fmt::Debug;
+
 use failure::Fail;
 use futures::prelude::*;
 use hyper::Response;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json;
-use std::fmt::Debug;
+
+use super::error::*;
+use super::ControllerFuture;
 
 pub fn parse_body<T>(body: Vec<u8>) -> impl Future<Item = T, Error = Error> + Send
 where

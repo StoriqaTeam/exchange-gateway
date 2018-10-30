@@ -17,6 +17,8 @@ pub struct ExchangeServiceImpl<E: DbExecutor> {
     db_executor: E,
     exmo_client: Arc<dyn ExmoClient>,
     expiration: u64,
+    rate_upside: f64,
+    safety_threshold: f64,
 }
 
 impl<E: DbExecutor> ExchangeServiceImpl<E> {
@@ -26,6 +28,8 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
         db_executor: E,
         exmo_client: Arc<dyn ExmoClient>,
         expiration: u64,
+        rate_upside: f64,
+        safety_threshold: f64,
     ) -> Self {
         Self {
             auth_service,
@@ -33,6 +37,8 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
             db_executor,
             exmo_client,
             expiration,
+            rate_upside,
+            safety_threshold,
         }
     }
 }
@@ -82,9 +88,8 @@ impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
         let input_clone = input.clone();
         Box::new(self.auth_service.authenticate(token).and_then(move |user| {
             exmo_client
-                .get_rate(input.clone())
+                .get_current_rate(input.clone())
                 .map_err(ectx!(convert => input))
-                .map(|resp| resp.rate)
                 .and_then(move |rate| {
                     db_executor.execute(move || {
                         let new_exchange = NewExchange::new(input_clone, expiration, rate, user.id);
@@ -110,7 +115,17 @@ mod tests {
         let exmo_client = Arc::new(ExmoClientMock::default());
         let db_executor = DbExecutorMock::default();
         let reserved_for = 600;
-        ExchangeServiceImpl::new(auth_service, exchange_repo, db_executor, exmo_client, reserved_for)
+        let rate_upside = 0f64;
+        let safety_threshold = 0f64;
+        ExchangeServiceImpl::new(
+            auth_service,
+            exchange_repo,
+            db_executor,
+            exmo_client,
+            reserved_for,
+            rate_upside,
+            safety_threshold,
+        )
     }
 
     #[test]

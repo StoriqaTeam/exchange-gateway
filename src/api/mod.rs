@@ -81,7 +81,8 @@ impl Service for ApiService {
         let cpu_pool = self.cpu_pool.clone();
         let db_executor = DbExecutorImpl::new(db_pool.clone(), cpu_pool.clone());
         let expiration = self.config.exchange_options.expiration;
-
+        let rate_upside = self.config.exchange_options.rate_upside;
+        let safety_threshold = self.config.exchange_options.safety_threshold;
         Box::new(
             read_body(http_body)
                 .map_err(ectx!(ErrorSource::Hyper, ErrorKind::Internal))
@@ -102,6 +103,8 @@ impl Service for ApiService {
                         db_executor.clone(),
                         exmo_client.clone(),
                         expiration,
+                        rate_upside,
+                        safety_threshold,
                     ));
 
                     let ctx = Context {

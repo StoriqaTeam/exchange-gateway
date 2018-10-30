@@ -5,6 +5,7 @@ mod blockchain_transaction_id;
 mod currency;
 mod exchange;
 mod exchange_id;
+mod order_type;
 mod user;
 mod user_id;
 
@@ -15,5 +16,6 @@ pub use self::blockchain_transaction_id::*;
 pub use self::currency::*;
 pub use self::exchange::*;
 pub use self::exchange_id::*;
+pub use self::order_type::*;
 pub use self::user::*;
 pub use self::user_id::*;

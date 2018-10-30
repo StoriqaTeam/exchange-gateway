@@ -6,6 +6,8 @@ use diesel::pg::Pg;
 use diesel::serialize::{self, IsNull, Output, ToSql};
 use diesel::sql_types::VarChar;
 
+use models::*;
+
 #[derive(Debug, Serialize, Deserialize, FromSqlRow, AsExpression, Clone, Copy, Eq, PartialEq, Hash)]
 #[sql_type = "VarChar"]
 #[serde(rename_all = "lowercase")]
@@ -49,5 +51,28 @@ impl Display for Currency {
             Currency::Stq => f.write_str("stq"),
             Currency::Btc => f.write_str("btc"),
         }
+    }
+}
+
+const MAX_RATE: f64 = 6500.0;
+pub const BTC_DECIMALS: u128 = 100_000_000u128;
+pub const ETH_DECIMALS: u128 = 1_000_000_000_000_000_000u128;
+pub const STQ_DECIMALS: u128 = 1_000_000_000_000_000_000u128;
+
+impl Currency {
+    pub fn to_f64(self, value: Amount) -> f64 {
+        let decimals = match self {
+            Currency::Btc => BTC_DECIMALS,
+            Currency::Eth => ETH_DECIMALS,
+            Currency::Stq => STQ_DECIMALS,
+        };
+        // Max of all rates
+        let max_rate = MAX_RATE as u128;
+        // first multiply by max_rate and then divide by it
+        // that is made so that we can use integer division of u128 (f64 is not enough)
+        // and be sure that our error is less that 1 dollar
+        let crypto_value_times_rate: u128 = value.raw() * max_rate / decimals;
+        // after dividing by decimals we have value small enough to be used as f64
+        (crypto_value_times_rate as f64) / (max_rate as f64)
     }
 }
