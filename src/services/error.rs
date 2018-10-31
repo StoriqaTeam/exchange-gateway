@@ -34,6 +34,8 @@ pub enum ErrorContext {
     Internal,
     #[fail(display = "service error context - no exchange rate found")]
     NoExchangeRate,
+    #[fail(display = "service error context - no such exchange rate on market")]
+    NoSuchRate,
     #[fail(display = "service error context - invalid auth token")]
     InvalidToken,
 }

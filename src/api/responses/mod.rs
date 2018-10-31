@@ -30,7 +30,6 @@ pub struct SellOrderResponse {
     pub from: Currency,
     pub to: Currency,
     pub amount: Amount,
-    pub actual_rate: f64,
 }
 
 impl From<SellOrder> for SellOrderResponse {
@@ -38,8 +37,7 @@ impl From<SellOrder> for SellOrderResponse {
         Self {
             from: sell.from,
             to: sell.to,
-            amount: sell.amount,
-            actual_rate: sell.rate,
+            amount: sell.actual_amount,
         }
     }
 }

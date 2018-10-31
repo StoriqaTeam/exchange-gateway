@@ -28,6 +28,8 @@ pub enum ErrorSource {
     Utf8,
     #[fail(display = "exmo client source - error parsing string to json")]
     Json,
+    #[fail(display = "exmo client source - error during delay")]
+    Delay,
     #[fail(display = "exmo client source - not enough amount on market")]
     NotEnoughAmount,
     #[fail(display = "exmo client source - no such currency conversion on market")]

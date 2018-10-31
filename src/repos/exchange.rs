@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+
 use diesel;
 
 use super::error::*;
@@ -33,6 +35,8 @@ impl<'a> ExchangesRepo for ExchangesRepoImpl {
                 .filter(id.eq(req.id))
                 .filter(from_.eq(req.from))
                 .filter(to_.eq(req.to))
+                .filter(amount.ge(req.actual_amount))
+                .filter(expiration.ge(SystemTime::now()))
                 .limit(1)
                 .get_result(conn)
                 .optional()

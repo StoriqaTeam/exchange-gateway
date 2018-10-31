@@ -16,8 +16,11 @@ services:
     environment:
       - DATABASE_URL=postgresql://exchange-gateway:exchange-gateway@exchange-gateway-pg/exchange-gateway
       - "RUST_LOG=exchange_gateway=debug"
+      - "RUST_BACKTRACE=1"
     expose:
       - 8000
+    ports:
+      - 8000:8000
     stdin_open: true
     depends_on:
       - exchange-gateway-pg

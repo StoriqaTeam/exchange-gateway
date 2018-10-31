@@ -1,63 +1,50 @@
 use std::collections::HashMap;
 use std::fmt;
-use std::marker::PhantomData;
-use std::str::FromStr;
+use std::num::ParseFloatError;
 
 use serde::de::{self, Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
 
 use super::error::*;
 use models::*;
 use prelude::*;
-#[derive(Debug, Clone)]
-pub struct ExmoCreateSellOrder {
-    pub from: Currency,
-    pub to: Currency,
-    pub amount: Amount,
-    pub rate: f64,
-}
 
-impl From<Exchange> for ExmoCreateSellOrder {
-    fn from(sell: Exchange) -> Self {
-        Self {
-            from: sell.from_,
-            to: sell.to_,
-            amount: sell.amount,
-            rate: sell.rate,
-        }
-    }
+#[derive(Debug, Deserialize, Clone)]
+pub struct ExmoCreateOrderResponse {
+    pub result: bool,
+    pub error: String,
+    pub order_id: u64,
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct ExmoSellOrderResponse {
-    pub id: BlockchainTransactionId,
-    pub from: Currency,
-    pub to: Currency,
-    pub amount: Amount,
-    pub rate: f64,
+pub struct ExmoCancelOrderResponse {
+    pub result: bool,
+    pub error: String,
 }
 
-impl From<ExmoSellOrderResponse> for SellOrder {
-    fn from(sell: ExmoSellOrderResponse) -> Self {
-        Self {
-            id: sell.id,
-            from: sell.from,
-            to: sell.to,
-            amount: sell.amount,
-            rate: sell.rate,
-        }
-    }
+#[derive(Debug, Deserialize, Clone)]
+pub struct ExmoOrderResponse {
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub in_currency: String,
+    #[serde(deserialize_with = "string_to_f64")]
+    pub in_amount: f64,
+    pub out_currency: String,
+    #[serde(deserialize_with = "string_to_f64")]
+    pub out_amount: f64,
+    pub trades: Vec<ExmoTrade>,
 }
 
-impl Default for ExmoSellOrderResponse {
-    fn default() -> Self {
-        Self {
-            id: BlockchainTransactionId::default(),
-            from: Currency::Eth,
-            to: Currency::Btc,
-            amount: Amount::default(),
-            rate: f64::default(),
-        }
-    }
+#[derive(Debug, Deserialize, Clone)]
+pub struct ExmoTrade {
+    pub trade_id: u64,
+    pub date: u64,
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub pair: String,
+    pub order_id: u64,
+    pub quantity: f64,
+    pub price: f64,
+    pub amount: f64,
 }
 
 #[derive(Debug, Clone)]
@@ -85,7 +72,7 @@ pub struct ExmoRateResponse {
     pub pair: HashMap<String, ExmoBook>,
 }
 
-#[derive(Debug, Deserialize, Clone, Default)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct ExmoBook {
     #[serde(deserialize_with = "string_to_f64")]
     pub ask_quantity: f64, //ask_quantity - the sum of all quantity values in sell orders
@@ -104,23 +91,50 @@ pub struct ExmoBook {
 }
 
 impl ExmoBook {
-    pub fn get_rate(&self, needed_amount: f64, type_: OrderType) -> Result<f64, Error> {
+    /// to get wright rate we first need to choose
+    /// where to look for rates:
+    /// if we want to buy, then we are watching sell orders.
+    /// if we want to sell, then we are watching buy orders.
+    /// Orders are ordered by price, therefore we need to get top orders
+    /// with enough quantity, after that we calculate weighted average
+    pub fn get_rate(&self, needed_quantity: f64, type_: OrderType) -> Result<f64, Error> {
         let orders = match type_ {
             OrderType::Buy => self.ask.iter(),
             OrderType::Sell => self.bid.iter(),
         };
-        let (amount_average, price_average, quantity_average) = orders.fold((0f64, 0f64, 0f64), |acc, x| {
-            let (mut amount, mut price, mut quantity) = acc;
-            amount += x.amount;
-            price += x.price;
-            quantity += x.quantity;
-            (amount, price, quantity)
-        });
-        if needed_amount > quantity_average {
-            return Err(ectx!(err ErrorSource::NotEnoughAmount, ErrorKind::Internal => needed_amount, quantity_average));
+        let mut needed_orders = vec![];
+        let mut total_quantity = 0f64;
+        for order in orders {
+            if total_quantity >= needed_quantity {
+                break;
+            }
+            total_quantity += order.quantity;
+            needed_orders.push(order);
         }
-        let weighted_average = amount_average / price_average;
+        if needed_quantity > total_quantity {
+            return Err(ectx!(err ErrorSource::NotEnoughAmount, ErrorKind::Internal => needed_quantity, total_quantity));
+        }
+        let total_amount = needed_orders.iter().fold(0f64, |mut amount, x| {
+            amount += x.amount;
+            amount
+        });
+        let weighted_average = total_amount / total_quantity;
         Ok(weighted_average)
+    }
+}
+
+impl Default for ExmoBook {
+    fn default() -> Self {
+        Self {
+            ask_quantity: 1f64,
+            ask_amount: 1f64,
+            ask_top: 1f64,
+            bid_quantity: 1f64,
+            bid_amount: 1f64,
+            bid_top: 1f64,
+            ask: vec![ExmoOrder::new(1f64, 1f64, 1f64)],
+            bid: vec![ExmoOrder::new(1f64, 1f64, 1f64)],
+        }
     }
 }
 
@@ -166,15 +180,15 @@ impl<'de> Deserialize<'de> for ExmoOrder {
                 let mut value: String = seq.next_element()?.ok_or_else(|| de::Error::invalid_length(0, &self))?;
                 let price = value
                     .parse()
-                    .map_err(|e: std::num::ParseFloatError| de::Error::invalid_type(de::Unexpected::Other(&e.to_string()), &self))?;
+                    .map_err(|e: ParseFloatError| de::Error::invalid_type(de::Unexpected::Other(&e.to_string()), &self))?;
                 value = seq.next_element()?.ok_or_else(|| de::Error::invalid_length(1, &self))?;
                 let quantity = value
                     .parse()
-                    .map_err(|e: std::num::ParseFloatError| de::Error::invalid_type(de::Unexpected::Other(&e.to_string()), &self))?;
+                    .map_err(|e: ParseFloatError| de::Error::invalid_type(de::Unexpected::Other(&e.to_string()), &self))?;
                 value = seq.next_element()?.ok_or_else(|| de::Error::invalid_length(2, &self))?;
                 let amount = value
                     .parse()
-                    .map_err(|e: std::num::ParseFloatError| de::Error::invalid_type(de::Unexpected::Other(&e.to_string()), &self))?;
+                    .map_err(|e: ParseFloatError| de::Error::invalid_type(de::Unexpected::Other(&e.to_string()), &self))?;
                 Ok(ExmoOrder::new(price, quantity, amount))
             }
 
@@ -238,7 +252,7 @@ where
         {
             value
                 .parse()
-                .map_err(|e: std::num::ParseFloatError| de::Error::invalid_type(de::Unexpected::Other(&e.to_string()), &self))
+                .map_err(|e: ParseFloatError| de::Error::invalid_type(de::Unexpected::Other(&e.to_string()), &self))
         }
 
         fn visit_map<M>(self, visitor: M) -> Result<f64, M::Error>

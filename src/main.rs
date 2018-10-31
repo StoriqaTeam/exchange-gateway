@@ -16,6 +16,9 @@ fn main() {
         exchange_gateway_lib::print_config();
     } else if let Some(_) = matches.subcommand_matches("server") {
         exchange_gateway_lib::start_server();
+    } else if let Some(matches) = matches.subcommand_matches("create_user") {
+        let name = matches.value_of("name").unwrap();
+        exchange_gateway_lib::create_user(&name);
     } else {
         let _ = app.print_help();
         println!("\n")

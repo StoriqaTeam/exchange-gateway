@@ -41,7 +41,6 @@ pub struct PostExchangeRequest {
     pub from: Currency,
     pub to: Currency,
     pub actual_amount: Amount,
-    pub rate: f64,
 }
 
 impl From<PostExchangeRequest> for CreateSellOrder {
@@ -51,7 +50,6 @@ impl From<PostExchangeRequest> for CreateSellOrder {
             from: req.from,
             to: req.to,
             actual_amount: req.actual_amount,
-            rate: req.rate,
         }
     }
 }

@@ -5,10 +5,12 @@ pub use self::error::*;
 
 use std::sync::Arc;
 
+use crypto::hmac::Hmac;
+use crypto::mac::Mac;
+use crypto::sha2::Sha512;
 use failure::Fail;
 use futures::future::{self, Either};
 use futures::prelude::*;
-use futures::stream::iter_ok;
 use hyper::Method;
 use hyper::{Body, Request};
 use serde::Deserialize;
@@ -21,8 +23,10 @@ use models::*;
 use utils::read_body;
 
 pub trait ExmoClient: Send + Sync + 'static {
-    fn sell(&self, input: ExmoCreateSellOrder) -> Box<Future<Item = ExmoSellOrderResponse, Error = Error> + Send>;
-    fn get_current_rate(&self, get: GetRate) -> Box<Future<Item = f64, Error = Error> + Send>;
+    fn create_order(&self, pair: String, quantity: f64, order_type: OrderType, nonce: i32)
+        -> Box<Future<Item = u64, Error = Error> + Send>;
+    fn get_order_status(&self, order_id: u64, nonce: i32) -> Box<Future<Item = (f64, f64), Error = Error> + Send>;
+    fn get_book(&self, pair: String) -> Box<Future<Item = ExmoBook, Error = Error> + Send>;
 }
 
 #[derive(Clone)]
@@ -43,10 +47,23 @@ impl ExmoClientImpl {
         }
     }
 
+    fn sign(&self, message: String) -> String {
+        let key_bytes = self.api_secret.as_bytes();
+        let mut hmac = Hmac::new(Sha512::new(), key_bytes);
+        let message_bytes = message.as_bytes();
+        hmac.input(message_bytes);
+        let mut output = [0; 64];
+        hmac.raw_result(&mut output);
+        output.into_iter().fold("".to_string(), |mut acc, x| {
+            acc += &format!("{:02x}", x);
+            acc
+        })
+    }
+
     fn exec_query_post<T: for<'de> Deserialize<'de> + Send>(
         &self,
         query: &str,
-        body: String,
+        message: String,
     ) -> impl Future<Item = T, Error = Error> + Send {
         let query = query.to_string();
         let query1 = query.clone();
@@ -55,10 +72,15 @@ impl ExmoClientImpl {
         let cli = self.cli.clone();
         let mut builder = Request::builder();
         let url = format!("{}{}", self.exmo_url, query);
+        let key = self.api_key.clone();
+        let sign = self.sign(message.clone());
         builder
             .uri(url)
             .method(Method::POST)
-            .body(Body::from(body))
+            .header("Key", key)
+            .header("Sign", sign)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(Body::from(message))
             .map_err(ectx!(ErrorSource::Hyper, ErrorKind::MalformedInput => query3))
             .into_future()
             .and_then(move |req| cli.request(req).map_err(ectx!(ErrorKind::Internal => query1)))
@@ -83,34 +105,94 @@ impl ExmoClientImpl {
                 String::from_utf8(bytes).map_err(ectx!(ErrorSource::Utf8, ErrorKind::Internal => bytes_clone))
             }).and_then(|string| serde_json::from_str::<T>(&string).map_err(ectx!(ErrorSource::Json, ErrorKind::Internal => string)))
     }
+}
 
-    fn get_book(&self, currency: Currency) -> Box<Future<Item = ExmoBook, Error = Error> + Send> {
-        let pair = match currency {
-            Currency::Eth => "ETH_BTC",
-            Currency::Stq => "STQ_BTC",
-            _ => {
-                return Box::new(future::err(
-                    ectx!(err ErrorSource::NoSuchConversion, ErrorKind::Internal => "BTC_BTC"),
-                ))
-            }
-        };
+impl ExmoClient for ExmoClientImpl {
+    fn create_order(
+        &self,
+        pair: String,
+        quantity: f64,
+        order_type: OrderType,
+        nonce: i32,
+    ) -> Box<Future<Item = u64, Error = Error> + Send> {
+        let message = format!("nonce={}&pair={}&quantity={}&price=0&type={}", nonce, pair, quantity, order_type);
+        let url = format!("/order_create");
+        Box::new(
+            self.exec_query_post::<ExmoCreateOrderResponse>(&url, message)
+                .and_then(move |resp| {
+                    if resp.result {
+                        Either::A(future::ok(resp.order_id))
+                    } else {
+                        Either::B(future::err(ectx!(err ErrorSource::Json, ErrorKind::Internal => resp.error)))
+                    }
+                }),
+        )
+    }
+
+    fn get_order_status(&self, order_id: u64, nonce: i32) -> Box<Future<Item = (f64, f64), Error = Error> + Send> {
+        let message = format!("nonce={}&order_id={}", nonce, order_id);
+        let url = format!("/order_trades");
+        Box::new(
+            self.exec_query_post::<ExmoOrderResponse>(&url, message)
+                .map(|resp| (resp.in_amount, resp.out_amount)),
+        )
+    }
+
+    fn get_book(&self, pair: String) -> Box<Future<Item = ExmoBook, Error = Error> + Send> {
         let url = format!("/order_book/?pair={}", pair);
         Box::new(self.exec_query_get::<ExmoRateResponse>(&url).and_then(move |resp| {
-            if let Some(book) = resp.pair.get(pair) {
+            if let Some(book) = resp.pair.get(&pair) {
                 Either::A(future::ok(book.clone()))
             } else {
                 Either::B(future::err(ectx!(err ErrorSource::Json, ErrorKind::Internal => resp)))
             }
         }))
     }
+}
 
-    fn get_rate(&self, currencies_exchange: Vec<(Currency, OrderType)>, amount: Amount) -> Box<Future<Item = f64, Error = Error> + Send> {
-        let service = self.clone();
+#[derive(Default)]
+pub struct ExmoClientMock;
+
+impl ExmoClient for ExmoClientMock {
+    fn create_order(
+        &self,
+        _pair: String,
+        _quantity: f64,
+        _order_type: OrderType,
+        _nonce: i32,
+    ) -> Box<Future<Item = u64, Error = Error> + Send> {
+        Box::new(Ok(1u64).into_future())
+    }
+    fn get_order_status(&self, _order_id: u64, _nonce: i32) -> Box<Future<Item = (f64, f64), Error = Error> + Send> {
+        Box::new(Ok((1f64, 1f64)).into_future())
+    }
+    fn get_book(&self, _pair: String) -> Box<Future<Item = ExmoBook, Error = Error> + Send> {
+        Box::new(Ok(ExmoBook::default()).into_future())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use futures::stream::iter_ok;
+    use tokio_core::reactor::Core;
+
+    use super::*;
+    use client::HttpClientImpl;
+    use config;
+    use models::{BTC_DECIMALS, ETH_DECIMALS, STQ_DECIMALS};
+    use utils::{get_exmo_type, need_revert};
+
+    fn get_rate(
+        service: &ExmoClientImpl,
+        currencies_exchange: Vec<(String, OrderType)>,
+        amount: f64,
+    ) -> Box<Future<Item = f64, Error = Error> + Send> {
+        let service = service.clone();
         Box::new(iter_ok::<_, Error>(currencies_exchange).fold(1f64, move |rate, currency_exchange| {
-            let (currency, order_type) = currency_exchange;
+            let (pair, order_type) = currency_exchange;
             service
-                .get_book(currency)
-                .and_then(move |book| book.get_rate(currency.to_f64(amount), order_type))
+                .get_book(pair)
+                .and_then(move |book| book.get_rate(amount, order_type))
                 .and_then(move |mut res| {
                     if need_revert(order_type) {
                         res = 1f64 / res;
@@ -119,67 +201,6 @@ impl ExmoClientImpl {
                 })
         }))
     }
-}
-
-impl ExmoClient for ExmoClientImpl {
-    fn sell(&self, _input: ExmoCreateSellOrder) -> Box<Future<Item = ExmoSellOrderResponse, Error = Error> + Send> {
-        unimplemented!()
-    }
-    fn get_current_rate(&self, get: GetRate) -> Box<Future<Item = f64, Error = Error> + Send> {
-        let service = self.clone();
-        let amount = get.amount;
-        Box::new(
-            get_exmo_type(get.from, get.to)
-                .into_future()
-                .and_then(move |currencies_exchange| service.get_rate(currencies_exchange, amount)),
-        )
-    }
-}
-
-/// All exchanges are done for prices in BTC, therefore
-/// we need to set what we need to do - sell, or buy
-fn get_exmo_type(from: Currency, to: Currency) -> Result<Vec<(Currency, OrderType)>, Error> {
-    match (from, to) {
-        (Currency::Btc, Currency::Eth) => Ok(vec![(Currency::Eth, OrderType::Sell)]),
-        (Currency::Eth, Currency::Btc) => Ok(vec![(Currency::Eth, OrderType::Buy)]),
-        (Currency::Btc, Currency::Stq) => Ok(vec![(Currency::Stq, OrderType::Sell)]),
-        (Currency::Stq, Currency::Btc) => Ok(vec![(Currency::Stq, OrderType::Buy)]),
-        (Currency::Eth, Currency::Stq) => Ok(vec![(Currency::Eth, OrderType::Buy), (Currency::Stq, OrderType::Sell)]),
-        (Currency::Stq, Currency::Eth) => Ok(vec![(Currency::Stq, OrderType::Buy), (Currency::Eth, OrderType::Sell)]),
-        (_, _) => Err(ectx!(err ErrorSource::NoSuchConversion, ErrorKind::Internal => from, to)),
-    }
-}
-
-/// All exchanges are done for prices in BTC, therefore
-/// if we are buying ETH or STQ we get rate for BTC
-/// and it does not need to be reverted. Opposite,
-/// if we are selling ETH or STQ we need to revert it
-fn need_revert(order_type: OrderType) -> bool {
-    match order_type {
-        OrderType::Buy => false,
-        OrderType::Sell => true,
-    }
-}
-
-#[derive(Default)]
-pub struct ExmoClientMock;
-
-impl ExmoClient for ExmoClientMock {
-    fn sell(&self, _input: ExmoCreateSellOrder) -> Box<Future<Item = ExmoSellOrderResponse, Error = Error> + Send> {
-        Box::new(Ok(ExmoSellOrderResponse::default()).into_future())
-    }
-    fn get_current_rate(&self, _get: GetRate) -> Box<Future<Item = f64, Error = Error> + Send> {
-        Box::new(Ok(1f64).into_future())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use client::HttpClientImpl;
-    use config;
-    use models::{BTC_DECIMALS, ETH_DECIMALS, STQ_DECIMALS};
-    use tokio_core::reactor::Core;
 
     fn create_client() -> ExmoClientImpl {
         let config = config::Config::new().unwrap_or_else(|e| panic!("Error parsing config: {}", e));
@@ -188,50 +209,38 @@ mod tests {
     }
 
     #[test]
-    fn test_rates() {
+    fn test_exmo_get_rates() {
         let client = create_client();
         let mut core = Core::new().unwrap();
-        let mut get_rate = GetRate::default();
-        get_rate.from = Currency::Eth;
-        get_rate.to = Currency::Btc;
-        get_rate.amount = Amount::new(ETH_DECIMALS);
-        let rate = core.run(client.get_current_rate(get_rate.clone())).unwrap();
-        println!("from {} to {} with {}, rate = {}", get_rate.from, get_rate.to, get_rate.amount, rate);
-        // assert!(rate < 1f64);
 
-        get_rate.from = Currency::Btc;
-        get_rate.to = Currency::Eth;
-        get_rate.amount = Amount::new(BTC_DECIMALS);
-        let rate = core.run(client.get_current_rate(get_rate.clone())).unwrap();
-        println!("from {} to {} with {}, rate = {}", get_rate.from, get_rate.to, get_rate.amount, rate);
-        // assert!(rate > 1f64);
+        let input = get_exmo_type(Currency::Eth, Currency::Btc);
+        let amount = Currency::Eth.to_f64(Amount::new(ETH_DECIMALS));
+        let rate = core.run(get_rate(&client, input.clone(), amount)).unwrap();
+        assert!(rate < 1f64);
 
-        get_rate.from = Currency::Stq;
-        get_rate.to = Currency::Btc;
-        get_rate.amount = Amount::new(STQ_DECIMALS);
-        let rate = core.run(client.get_current_rate(get_rate.clone())).unwrap();
-        println!("from {} to {} with {}, rate = {}", get_rate.from, get_rate.to, get_rate.amount, rate);
-        // assert!(rate < 1f64);
+        let input = get_exmo_type(Currency::Btc, Currency::Eth);
+        let amount = Currency::Btc.to_f64(Amount::new(BTC_DECIMALS));
+        let rate = core.run(get_rate(&client, input.clone(), amount)).unwrap();
+        assert!(rate > 1f64);
 
-        get_rate.from = Currency::Btc;
-        get_rate.to = Currency::Stq;
-        get_rate.amount = Amount::new(STQ_DECIMALS);
-        let rate = core.run(client.get_current_rate(get_rate.clone())).unwrap();
-        println!("from {} to {} with {}, rate = {}", get_rate.from, get_rate.to, get_rate.amount, rate);
-        // assert!(rate > 1f64);
+        let input = get_exmo_type(Currency::Stq, Currency::Btc);
+        let amount = Currency::Stq.to_f64(Amount::new(STQ_DECIMALS));
+        let rate = core.run(get_rate(&client, input.clone(), amount)).unwrap();
+        assert!(rate < 1f64);
 
-        get_rate.from = Currency::Stq;
-        get_rate.to = Currency::Eth;
-        get_rate.amount = Amount::new(STQ_DECIMALS);
-        let rate = core.run(client.get_current_rate(get_rate.clone())).unwrap();
-        println!("from {} to {} with {}, rate = {}", get_rate.from, get_rate.to, get_rate.amount, rate);
-        // assert!(rate < 1f64);
+        let input = get_exmo_type(Currency::Btc, Currency::Stq);
+        let amount = Currency::Btc.to_f64(Amount::new(BTC_DECIMALS));
+        let rate = core.run(get_rate(&client, input.clone(), amount)).unwrap();
+        assert!(rate > 1f64);
 
-        get_rate.from = Currency::Eth;
-        get_rate.to = Currency::Stq;
-        get_rate.amount = Amount::new(ETH_DECIMALS);
-        let rate = core.run(client.get_current_rate(get_rate.clone())).unwrap();
-        println!("from {} to {} with {}, rate = {}", get_rate.from, get_rate.to, get_rate.amount, rate);
-        // assert!(rate > 1f64);
+        let input = get_exmo_type(Currency::Stq, Currency::Eth);
+        let amount = Currency::Stq.to_f64(Amount::new(STQ_DECIMALS));
+        let rate = core.run(get_rate(&client, input.clone(), amount)).unwrap();
+        assert!(rate < 1f64);
+
+        let input = get_exmo_type(Currency::Eth, Currency::Stq);
+        let amount = Currency::Eth.to_f64(Amount::new(ETH_DECIMALS));
+        let rate = core.run(get_rate(&client, input.clone(), amount)).unwrap();
+        assert!(rate > 1f64);
     }
 }

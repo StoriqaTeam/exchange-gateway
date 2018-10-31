@@ -4,6 +4,8 @@ use futures::prelude::*;
 use hyper;
 use sentry::integrations::failure::capture_error;
 
+use models::*;
+
 pub fn format_error<E: Fail>(error: &E) -> String {
     let mut result = String::new();
     let mut chain: Vec<&Fail> = Vec::new();
@@ -56,4 +58,31 @@ pub fn read_body(body: hyper::Body) -> impl Future<Item = Vec<u8>, Error = hyper
         acc.extend_from_slice(&*chunk);
         future::ok::<_, hyper::Error>(acc)
     })
+}
+
+/// All exchanges are done for prices in BTC, therefore
+/// we need to set what we need to do - sell, or buy
+pub fn get_exmo_type(from: Currency, to: Currency) -> Vec<(String, OrderType)> {
+    match (from, to) {
+        (Currency::Btc, Currency::Eth) => vec![("ETH_BTC".to_string(), OrderType::Sell)],
+        (Currency::Eth, Currency::Btc) => vec![("ETH_BTC".to_string(), OrderType::Buy)],
+        (Currency::Btc, Currency::Stq) => vec![("STQ_BTC".to_string(), OrderType::Sell)],
+        (Currency::Stq, Currency::Btc) => vec![("STQ_BTC".to_string(), OrderType::Buy)],
+        (Currency::Eth, Currency::Stq) => vec![("ETH_BTC".to_string(), OrderType::Buy), ("STQ_BTC".to_string(), OrderType::Sell)],
+        (Currency::Stq, Currency::Eth) => vec![("STQ_BTC".to_string(), OrderType::Buy), ("ETH_BTC".to_string(), OrderType::Sell)],
+        (Currency::Stq, Currency::Stq) => vec![("STQ_STQ".to_string(), OrderType::Buy)],
+        (Currency::Btc, Currency::Btc) => vec![("BTC_BTC".to_string(), OrderType::Buy)],
+        (Currency::Eth, Currency::Eth) => vec![("ETH_ETH".to_string(), OrderType::Buy)],
+    }
+}
+
+/// All exchanges are done for prices in BTC, therefore
+/// if we are buying ETH or STQ we get rate for BTC
+/// and it does not need to be reverted. Opposite,
+/// if we are selling ETH or STQ we need to revert it
+pub fn need_revert(order_type: OrderType) -> bool {
+    match order_type {
+        OrderType::Buy => false,
+        OrderType::Sell => true,
+    }
 }

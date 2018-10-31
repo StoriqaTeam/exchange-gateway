@@ -3,7 +3,8 @@ use std::time::SystemTime;
 
 use super::error::*;
 use super::exchange::*;
-use super::executor::DbExecutor;
+use super::executor::{DbExecutor, Isolation};
+use super::sell_orders::*;
 use super::types::RepoResult;
 use super::users::*;
 use models::*;
@@ -85,6 +86,20 @@ impl ExchangesRepo for ExchangesRepoMock {
 }
 
 #[derive(Clone, Default)]
+pub struct SellOrdersRepoMock {
+    data: Arc<Mutex<Vec<SellOrderDB>>>,
+}
+
+impl SellOrdersRepo for SellOrdersRepoMock {
+    fn create(&self, payload: NewSellOrder) -> RepoResult<SellOrderDB> {
+        let mut data = self.data.lock().unwrap();
+        let res: SellOrderDB = payload.into();
+        data.push(res.clone());
+        Ok(res)
+    }
+}
+
+#[derive(Clone, Default)]
 pub struct DbExecutorMock;
 
 impl DbExecutor for DbExecutorMock {
@@ -105,6 +120,14 @@ impl DbExecutor for DbExecutorMock {
         Box::new(f().into_future())
     }
     fn execute_test_transaction<F, T, E>(&self, f: F) -> Box<Future<Item = T, Error = E> + Send + 'static>
+    where
+        T: Send + 'static,
+        F: FnOnce() -> Result<T, E> + Send + 'static,
+        E: From<Error> + Fail,
+    {
+        Box::new(f().into_future())
+    }
+    fn execute_transaction_with_isolation<F, T, E>(&self, _isolation: Isolation, f: F) -> Box<Future<Item = T, Error = E> + Send + 'static>
     where
         T: Send + 'static,
         F: FnOnce() -> Result<T, E> + Send + 'static,

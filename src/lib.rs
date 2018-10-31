@@ -1,14 +1,17 @@
 #![allow(proc_macro_derive_resolution_fallback)]
 
+extern crate crypto;
+extern crate failure;
 extern crate futures;
 #[macro_use]
-extern crate failure;
-#[macro_use]
 extern crate diesel;
+extern crate base64;
 extern crate futures_cpupool;
 extern crate hyper;
 extern crate r2d2;
+extern crate rand;
 extern crate serde;
+#[macro_use]
 extern crate serde_json;
 extern crate serde_qs;
 #[macro_use]
@@ -27,6 +30,7 @@ extern crate validator;
 #[macro_use]
 extern crate sentry;
 extern crate tokio_core;
+extern crate tokio_timer;
 extern crate uuid;
 
 #[macro_use]

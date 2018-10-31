@@ -75,4 +75,15 @@ impl Currency {
         // after dividing by decimals we have value small enough to be used as f64
         (crypto_value_times_rate as f64) / (max_rate as f64)
     }
+
+    pub fn from_f64(self, value: f64) -> Amount {
+        let decimals = match self {
+            Currency::Btc => BTC_DECIMALS,
+            Currency::Eth => ETH_DECIMALS,
+            Currency::Stq => STQ_DECIMALS,
+        };
+        let val = value * MAX_RATE;
+        let crypto_val = (val as u128) * decimals / (MAX_RATE as u128);
+        Amount::new(crypto_val)
+    }
 }

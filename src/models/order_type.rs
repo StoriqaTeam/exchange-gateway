@@ -9,8 +9,8 @@ pub enum OrderType {
 impl Display for OrderType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            OrderType::Sell => f.write_str("sell"),
-            OrderType::Buy => f.write_str("buy"),
+            OrderType::Sell => f.write_str("market_sell"),
+            OrderType::Buy => f.write_str("market_buy"),
         }
     }
 }

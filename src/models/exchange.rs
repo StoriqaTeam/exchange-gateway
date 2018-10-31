@@ -81,7 +81,6 @@ pub struct CreateSellOrder {
     pub from: Currency,
     pub to: Currency,
     pub actual_amount: Amount,
-    pub rate: f64,
 }
 
 impl From<CreateSellOrder> for GetExchange {
@@ -91,7 +90,6 @@ impl From<CreateSellOrder> for GetExchange {
             from: sell.from,
             to: sell.to,
             actual_amount: sell.actual_amount,
-            rate: sell.rate,
         }
     }
 }
@@ -103,7 +101,6 @@ impl Default for CreateSellOrder {
             from: Currency::Eth,
             to: Currency::Btc,
             actual_amount: Amount::default(),
-            rate: 0.333,
         }
     }
 }
@@ -114,7 +111,6 @@ pub struct GetExchange {
     pub from: Currency,
     pub to: Currency,
     pub actual_amount: Amount,
-    pub rate: f64,
 }
 
 impl Default for GetExchange {
@@ -124,18 +120,8 @@ impl Default for GetExchange {
             from: Currency::Eth,
             to: Currency::Btc,
             actual_amount: Amount::default(),
-            rate: 0.34343,
         }
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct SellOrder {
-    pub id: BlockchainTransactionId,
-    pub from: Currency,
-    pub to: Currency,
-    pub amount: Amount,
-    pub rate: f64,
 }
 
 #[derive(Debug, Clone)]

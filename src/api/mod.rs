@@ -15,7 +15,7 @@ use r2d2::Pool;
 use super::config::Config;
 use super::utils::{log_and_capture_error, log_error, log_warn};
 use client::{ExmoClient, ExmoClientImpl, HttpClientImpl};
-use repos::{DbExecutorImpl, ExchangesRepoImpl, UsersRepoImpl};
+use repos::{DbExecutorImpl, ExchangesRepoImpl, SellOrdersRepoImpl, UsersRepoImpl};
 use utils::read_body;
 
 mod controllers;
@@ -100,6 +100,7 @@ impl Service for ApiService {
                     let exchange_service = Arc::new(ExchangeServiceImpl::new(
                         auth_service,
                         Arc::new(ExchangesRepoImpl),
+                        Arc::new(SellOrdersRepoImpl),
                         db_executor.clone(),
                         exmo_client.clone(),
                         expiration,
