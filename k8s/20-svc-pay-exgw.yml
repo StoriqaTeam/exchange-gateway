@@ -3,13 +3,12 @@ apiVersion: v1
 metadata:
   name: exchange-gateway
   labels:
-    stack: exchange
+    stack: payments
 spec:
   selector:
-    stack: exchange
+    stack: payments
     app: gateway
   ports:
   - name: main
     protocol: TCP
     port: 8000
-    targetPort: 8000
