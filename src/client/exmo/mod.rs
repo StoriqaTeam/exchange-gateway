@@ -27,6 +27,7 @@ pub trait ExmoClient: Send + Sync + 'static {
         -> Box<Future<Item = u64, Error = Error> + Send>;
     fn get_order_status(&self, order_id: u64, nonce: i32) -> Box<Future<Item = (f64, f64), Error = Error> + Send>;
     fn get_book(&self, pair: String) -> Box<Future<Item = ExmoBook, Error = Error> + Send>;
+    fn get_user_trades(&self, pair: String, nonce: i32) -> Box<Future<Item = (f64, f64), Error = Error> + Send>;
 }
 
 #[derive(Clone)]
@@ -148,6 +149,15 @@ impl ExmoClient for ExmoClientImpl {
             }
         }))
     }
+
+    fn get_user_trades(&self, pair: String, nonce: i32) -> Box<Future<Item = (f64, f64), Error = Error> + Send> {
+        let message = format!("nonce={}&pair={}", nonce, pair);
+        let url = format!("/user_trades");
+        Box::new(
+            self.exec_query_post::<ExmoOrderResponse>(&url, message)
+                .map(|resp| (resp.in_amount, resp.out_amount)),
+        )
+    }
 }
 
 #[derive(Default)]
@@ -168,6 +178,9 @@ impl ExmoClient for ExmoClientMock {
     }
     fn get_book(&self, _pair: String) -> Box<Future<Item = ExmoBook, Error = Error> + Send> {
         Box::new(Ok(ExmoBook::default()).into_future())
+    }
+    fn get_user_trades(&self, _pair: String, _nonce: i32) -> Box<Future<Item = (f64, f64), Error = Error> + Send> {
+        Box::new(Ok((1f64, 1f64)).into_future())
     }
 }
 
