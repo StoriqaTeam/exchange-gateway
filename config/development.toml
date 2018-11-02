@@ -21,3 +21,17 @@ expiration = 300 # 5 minutes
 rate_upside = 0.1 # 10%
 safety_threshold = 0.05 # 5%
 test_environment = true
+
+[limits]
+
+  [limits.stq]
+  min = 100
+  max = 1000000
+
+  [limits.btc]
+  min = 0.001
+  max = 1
+  
+  [limits.eth]
+  min = 0.01
+  max = 10

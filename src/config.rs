@@ -12,6 +12,7 @@ pub struct Config {
     pub auth: Auth,
     pub cpu_pool: CpuPool,
     pub exchange_options: Options,
+    pub limits: CurrenciesLimits,
     pub sentry: Option<SentryConfig>,
 }
 
@@ -49,6 +50,25 @@ pub struct Database {
 #[derive(Debug, Deserialize, Clone)]
 pub struct CpuPool {
     pub size: usize,
+}
+
+#[derive(Debug, Deserialize, Clone, Default)]
+pub struct CurrenciesLimits {
+    pub stq: Limits,
+    pub btc: Limits,
+    pub eth: Limits,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Limits {
+    pub min: f64,
+    pub max: f64,
+}
+
+impl Default for Limits {
+    fn default() -> Self {
+        Self { min: 0f64, max: 1f64 }
+    }
 }
 
 impl Config {

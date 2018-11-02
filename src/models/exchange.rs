@@ -1,7 +1,10 @@
+use std::borrow::Cow;
+use std::collections::HashMap;
 use std::time::SystemTime;
 
-use validator::Validate;
+use validator::{Validate, ValidationError, ValidationErrors};
 
+use config::CurrenciesLimits;
 use models::*;
 use schema::exchanges;
 
@@ -101,6 +104,36 @@ impl Default for CreateSellOrder {
             from: Currency::Eth,
             to: Currency::Btc,
             actual_amount: Amount::default(),
+        }
+    }
+}
+
+impl CreateSellOrder {
+    pub fn validate(&self, limits: CurrenciesLimits) -> Result<(), ValidationErrors> {
+        let limit = match self.from {
+            Currency::Btc => limits.btc,
+            Currency::Eth => limits.eth,
+            Currency::Stq => limits.stq,
+        };
+        let quantity = self.from.to_f64(self.actual_amount);
+
+        let mut errors = ValidationErrors::new();
+        if quantity < limit.min || quantity > limit.max {
+            let error = ValidationError {
+                code: Cow::from("limit"),
+                message: Some(Cow::from(format!(
+                    "Amount should be between {} and {}",
+                    self.from.from_f64(limit.min),
+                    self.from.from_f64(limit.max)
+                ))),
+                params: HashMap::new(),
+            };
+            errors.add("actual_amount", error);
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
         }
     }
 }

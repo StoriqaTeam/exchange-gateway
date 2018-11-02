@@ -9,6 +9,7 @@ use tokio_core::reactor::Core;
 use super::auth::AuthService;
 use super::*;
 use client::ExmoClient;
+use config::CurrenciesLimits;
 use models::*;
 use prelude::*;
 use repos::{DbExecutor, ExchangesRepo, Isolation, SellOrdersRepo};
@@ -24,6 +25,7 @@ pub struct ExchangeServiceImpl<E: DbExecutor> {
     expiration: u64,
     rate_upside: f64,
     safety_threshold: f64,
+    limits: CurrenciesLimits,
 }
 
 impl<E: DbExecutor> ExchangeServiceImpl<E> {
@@ -36,6 +38,7 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
         expiration: u64,
         rate_upside: f64,
         safety_threshold: f64,
+        limits: CurrenciesLimits,
     ) -> Self {
         Self {
             auth_service,
@@ -46,63 +49,8 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
             expiration,
             rate_upside,
             safety_threshold,
+            limits,
         }
-    }
-}
-
-pub trait ExchangeService: Send + Sync + 'static {
-    fn sell(&self, token: AuthenticationToken, input: CreateSellOrder) -> ServiceFuture<SellOrder>;
-    fn start_selling(&self, exchange: Exchange, actual_amount: Amount) -> ServiceFuture<SellOrder>;
-    fn get_rate(&self, token: AuthenticationToken, input: GetRate) -> ServiceFuture<Exchange>;
-    fn get_current_rate(&self, from: Currency, to: Currency, amount: Amount) -> ServiceFuture<f64>;
-}
-
-impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
-    fn sell(&self, token: AuthenticationToken, input: CreateSellOrder) -> ServiceFuture<SellOrder> {
-        let db_executor = self.db_executor.clone();
-        let exchange_repo = self.exchange_repo.clone();
-        let safety_threshold = self.safety_threshold;
-        let input_clone2 = input.clone();
-        let from = input.from;
-        let to = input.to;
-        let service = self.clone();
-        let service2 = self.clone();
-        let amount = input.actual_amount;
-        Box::new(self.auth_service.authenticate(token).and_then(move |user| {
-            db_executor
-                .execute(move || {
-                    let input_clone = input.clone();
-                    let input_clone2 = input.clone();
-                    exchange_repo
-                        .get(input.into())
-                        .map_err(ectx!(try convert => input_clone))?
-                        .ok_or_else(|| ectx!(err ErrorContext::NoExchangeRate, ErrorKind::NotFound => input_clone2))
-                }).and_then(move |exchange| {
-                    if exchange.user_id != user.id {
-                        Either::A(future::err(
-                            ectx!(err ErrorContext::InvalidToken, ErrorKind::Unauthorized => user.id),
-                        ))
-                    } else {
-                        let input_clone = input_clone2.clone();
-                        let users_rate = exchange.rate;
-                        Either::B(service.get_current_rate(from, to, amount).and_then(move |current_rate| {
-                            let safety_rate = current_rate / (1f64 + safety_threshold);
-                            // we recalculate current_rate with safety_threshold, for not to loose on conversion, example:
-                            // if current_rate is 10, rate_for_user (exchange.rate) is 9, safety threshold = 0,05:
-                            // then safety_rate = 10 / 1,05, it is still higher then rate for user - we don't loose, Ok!
-                            // if current_rate is 9, rate_for_user (exchange.rate) is 9, safety threshold = 0,05:
-                            // then safety_rate = 9 / 1,05, it is lower then rate for user - we loose, Error!
-                            if safety_rate > users_rate {
-                                Either::A(service2.start_selling(exchange, input_clone.actual_amount))
-                            } else {
-                                Either::B(future::err(
-                                    ectx!(err ErrorContext::NoSuchRate, ErrorKind::Internal => safety_rate, users_rate),
-                                ))
-                            }
-                        }))
-                    }
-                })
-        }))
     }
 
     fn get_current_rate(&self, from: Currency, to: Currency, amount: Amount) -> ServiceFuture<f64> {
@@ -127,35 +75,6 @@ impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
                         })
                 }).map(|(_, rate)| rate),
         )
-    }
-
-    fn get_rate(&self, token: AuthenticationToken, input: GetRate) -> ServiceFuture<Exchange> {
-        let exchange_repo = self.exchange_repo.clone();
-        let db_executor = self.db_executor.clone();
-        let rate_upside = self.rate_upside;
-        let expiration = SystemTime::now() + Duration::from_secs(self.expiration);
-        let input_clone = input.clone();
-        let amount = input.amount;
-        let from = input.from;
-        let to = input.to;
-        let service = self.clone();
-        Box::new(self.auth_service.authenticate(token).and_then(move |user| {
-            service.get_current_rate(from, to, amount).and_then(move |rate| {
-                db_executor.execute(move || {
-                    // we recalculate rate with rate_upside, for not to loose on conversion, example:
-                    // if rate is 10 - it means that for 1 BTC one will receive 10 ETH
-                    // for not to lose we give him for 1 BTC - 9 ETH
-                    // if rate is 0,1 - it means that for 1 ETH one will receive 0,1 BTC
-                    // for not to lose we give him for 1 ETH - 0,09 ETH
-                    // rate_upside must be > 0
-                    let rate_with_upside = rate / (1f64 + rate_upside);
-                    let new_exchange = NewExchange::new(input_clone, expiration, rate_with_upside, user.id);
-                    exchange_repo
-                        .create(new_exchange.clone())
-                        .map_err(ectx!(ErrorKind::Internal => new_exchange))
-                })
-            })
-        }))
     }
 
     fn start_selling(&self, exchange: Exchange, quantity: Amount) -> ServiceFuture<SellOrder> {
@@ -207,10 +126,101 @@ impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
     }
 }
 
+pub trait ExchangeService: Send + Sync + 'static {
+    fn sell(&self, token: AuthenticationToken, input: CreateSellOrder) -> ServiceFuture<SellOrder>;
+    fn get_rate(&self, token: AuthenticationToken, input: GetRate) -> ServiceFuture<Exchange>;
+}
+
+impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
+    fn sell(&self, token: AuthenticationToken, input: CreateSellOrder) -> ServiceFuture<SellOrder> {
+        let db_executor = self.db_executor.clone();
+        let exchange_repo = self.exchange_repo.clone();
+        let safety_threshold = self.safety_threshold;
+        let limits = self.limits.clone();
+        let input_clone2 = input.clone();
+        let from = input.from;
+        let to = input.to;
+        let service = self.clone();
+        let service2 = self.clone();
+        let amount = input.actual_amount;
+        Box::new(self.auth_service.authenticate(token).and_then(move |user| {
+            input
+                .validate(limits)
+                .map_err(|e| ectx!(err e.clone(), ErrorKind::InvalidInput(e) => input))
+                .into_future()
+                .and_then(move |_| {
+                    db_executor
+                        .execute(move || {
+                            let input_clone = input.clone();
+                            let input_clone2 = input.clone();
+                            exchange_repo
+                                .get(input.into())
+                                .map_err(ectx!(try convert => input_clone))?
+                                .ok_or_else(|| ectx!(err ErrorContext::NoExchangeRate, ErrorKind::NotFound => input_clone2))
+                        }).and_then(move |exchange| {
+                            if exchange.user_id != user.id {
+                                Either::A(future::err(
+                                    ectx!(err ErrorContext::InvalidToken, ErrorKind::Unauthorized => user.id),
+                                ))
+                            } else {
+                                let input_clone = input_clone2.clone();
+                                let users_rate = exchange.rate;
+                                Either::B(service.get_current_rate(from, to, amount).and_then(move |current_rate| {
+                                    let safety_rate = current_rate / (1f64 + safety_threshold);
+                                    // we recalculate current_rate with safety_threshold, for not to loose on conversion, example:
+                                    // if current_rate is 10, rate_for_user (exchange.rate) is 9, safety threshold = 0,05:
+                                    // then safety_rate = 10 / 1,05, it is still higher then rate for user - we don't loose, Ok!
+                                    // if current_rate is 9, rate_for_user (exchange.rate) is 9, safety threshold = 0,05:
+                                    // then safety_rate = 9 / 1,05, it is lower then rate for user - we loose, Error!
+                                    if safety_rate > users_rate {
+                                        Either::A(service2.start_selling(exchange, input_clone.actual_amount))
+                                    } else {
+                                        Either::B(future::err(
+                                            ectx!(err ErrorContext::NoSuchRate, ErrorKind::Internal => safety_rate, users_rate),
+                                        ))
+                                    }
+                                }))
+                            }
+                        })
+                })
+        }))
+    }
+
+    fn get_rate(&self, token: AuthenticationToken, input: GetRate) -> ServiceFuture<Exchange> {
+        let exchange_repo = self.exchange_repo.clone();
+        let db_executor = self.db_executor.clone();
+        let rate_upside = self.rate_upside;
+        let expiration = SystemTime::now() + Duration::from_secs(self.expiration);
+        let input_clone = input.clone();
+        let amount = input.amount;
+        let from = input.from;
+        let to = input.to;
+        let service = self.clone();
+        Box::new(self.auth_service.authenticate(token).and_then(move |user| {
+            service.get_current_rate(from, to, amount).and_then(move |rate| {
+                db_executor.execute(move || {
+                    // we recalculate rate with rate_upside, for not to loose on conversion, example:
+                    // if rate is 10 - it means that for 1 BTC one will receive 10 ETH
+                    // for not to lose we give him for 1 BTC - 9 ETH
+                    // if rate is 0,1 - it means that for 1 ETH one will receive 0,1 BTC
+                    // for not to lose we give him for 1 ETH - 0,09 ETH
+                    // rate_upside must be > 0
+                    let rate_with_upside = rate / (1f64 + rate_upside);
+                    let new_exchange = NewExchange::new(input_clone, expiration, rate_with_upside, user.id);
+                    exchange_repo
+                        .create(new_exchange.clone())
+                        .map_err(ectx!(ErrorKind::Internal => new_exchange))
+                })
+            })
+        }))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use client::*;
+    use config::CurrenciesLimits;
     use models::{BTC_DECIMALS, ETH_DECIMALS, STQ_DECIMALS};
     use repos::*;
     use tokio_core::reactor::Core;
@@ -224,6 +234,7 @@ mod tests {
         let reserved_for = 600;
         let rate_upside = 0f64;
         let safety_threshold = 0f64;
+        let limits = CurrenciesLimits::default();
         ExchangeServiceImpl::new(
             auth_service,
             exchange_repo,
@@ -233,6 +244,7 @@ mod tests {
             reserved_for,
             rate_upside,
             safety_threshold,
+            limits,
         )
     }
 

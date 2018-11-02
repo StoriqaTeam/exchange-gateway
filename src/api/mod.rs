@@ -87,6 +87,7 @@ impl Service for ApiService {
         let expiration = self.config.exchange_options.expiration;
         let rate_upside = self.config.exchange_options.rate_upside;
         let safety_threshold = self.config.exchange_options.safety_threshold;
+        let limits = self.config.limits.clone();
         Box::new(
             read_body(http_body)
                 .map_err(ectx!(ErrorSource::Hyper, ErrorKind::Internal))
@@ -110,6 +111,7 @@ impl Service for ApiService {
                         expiration,
                         rate_upside,
                         safety_threshold,
+                        limits,
                     ));
 
                     let ctx = Context {
