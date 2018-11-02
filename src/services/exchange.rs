@@ -119,7 +119,7 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
                             let _ = sell_orders_repo
                                 .create(NewSellOrder::new(data.clone()));
 
-                            Ok(out_amount)
+                            Ok(in_amount)
                         })
                 }).map(move |actual_quantity| SellOrder::new(actual_quantity, from, to)),
         )
@@ -144,8 +144,7 @@ impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
         let service2 = self.clone();
         let amount = input.actual_amount;
         Box::new(self.auth_service.authenticate(token).and_then(move |user| {
-            input
-                .validate(limits)
+                validate(input.from, input.actual_amount, limits)
                 .map_err(|e| ectx!(err e.clone(), ErrorKind::InvalidInput(e) => input))
                 .into_future()
                 .and_then(move |_| {
@@ -196,6 +195,7 @@ impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
         let from = input.from;
         let to = input.to;
         let service = self.clone();
+        let limits = self.limits.clone();
         Box::new(self.auth_service.authenticate(token).and_then(move |user| {
             service.get_current_rate(from, to, amount).and_then(move |rate| {
                 db_executor.execute(move || {

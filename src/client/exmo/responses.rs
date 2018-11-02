@@ -42,8 +42,11 @@ pub struct ExmoTrade {
     pub type_: String,
     pub pair: String,
     pub order_id: u64,
+    #[serde(deserialize_with = "string_to_f64")]
     pub quantity: f64,
+    #[serde(deserialize_with = "string_to_f64")]
     pub price: f64,
+    #[serde(deserialize_with = "string_to_f64")]
     pub amount: f64,
 }
 

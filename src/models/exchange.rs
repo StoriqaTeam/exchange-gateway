@@ -108,33 +108,31 @@ impl Default for CreateSellOrder {
     }
 }
 
-impl CreateSellOrder {
-    pub fn validate(&self, limits: CurrenciesLimits) -> Result<(), ValidationErrors> {
-        let limit = match self.from {
-            Currency::Btc => limits.btc,
-            Currency::Eth => limits.eth,
-            Currency::Stq => limits.stq,
-        };
-        let quantity = self.from.to_f64(self.actual_amount);
+pub fn validate(from: Currency, amount: Amount, limits: CurrenciesLimits) -> Result<(), ValidationErrors> {
+    let limit = match from {
+        Currency::Btc => limits.btc,
+        Currency::Eth => limits.eth,
+        Currency::Stq => limits.stq,
+    };
+    let quantity = from.to_f64(amount);
 
-        let mut errors = ValidationErrors::new();
-        if quantity < limit.min || quantity > limit.max {
-            let error = ValidationError {
-                code: Cow::from("limit"),
-                message: Some(Cow::from(format!(
-                    "Amount should be between {} and {}",
-                    self.from.from_f64(limit.min),
-                    self.from.from_f64(limit.max)
-                ))),
-                params: HashMap::new(),
-            };
-            errors.add("actual_amount", error);
-        }
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(errors)
-        }
+    let mut errors = ValidationErrors::new();
+    if quantity < limit.min || quantity > limit.max {
+        let error = ValidationError {
+            code: Cow::from("limit"),
+            message: Some(Cow::from(format!(
+                "Amount should be between {} and {}",
+                from.from_f64(limit.min),
+                from.from_f64(limit.max)
+            ))),
+            params: HashMap::new(),
+        };
+        errors.add("actual_amount", error);
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
     }
 }
 

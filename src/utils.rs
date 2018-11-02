@@ -64,15 +64,15 @@ pub fn read_body(body: hyper::Body) -> impl Future<Item = Vec<u8>, Error = hyper
 /// we need to set what we need to do - sell, or buy
 pub fn get_exmo_type(from: Currency, to: Currency) -> Vec<(String, OrderType)> {
     match (from, to) {
-        (Currency::Btc, Currency::Eth) => vec![("ETH_BTC".to_string(), OrderType::Sell)],
-        (Currency::Eth, Currency::Btc) => vec![("ETH_BTC".to_string(), OrderType::Buy)],
-        (Currency::Btc, Currency::Stq) => vec![("STQ_BTC".to_string(), OrderType::Sell)],
-        (Currency::Stq, Currency::Btc) => vec![("STQ_BTC".to_string(), OrderType::Buy)],
-        (Currency::Eth, Currency::Stq) => vec![("ETH_BTC".to_string(), OrderType::Buy), ("STQ_BTC".to_string(), OrderType::Sell)],
-        (Currency::Stq, Currency::Eth) => vec![("STQ_BTC".to_string(), OrderType::Buy), ("ETH_BTC".to_string(), OrderType::Sell)],
-        (Currency::Stq, Currency::Stq) => vec![("STQ_STQ".to_string(), OrderType::Buy)],
-        (Currency::Btc, Currency::Btc) => vec![("BTC_BTC".to_string(), OrderType::Buy)],
-        (Currency::Eth, Currency::Eth) => vec![("ETH_ETH".to_string(), OrderType::Buy)],
+        (Currency::Btc, Currency::Eth) => vec![("ETH_BTC".to_string(), OrderType::Buy)],
+        (Currency::Eth, Currency::Btc) => vec![("ETH_BTC".to_string(), OrderType::Sell)],
+        (Currency::Btc, Currency::Stq) => vec![("STQ_BTC".to_string(), OrderType::Buy)],
+        (Currency::Stq, Currency::Btc) => vec![("STQ_BTC".to_string(), OrderType::Sell)],
+        (Currency::Eth, Currency::Stq) => vec![("ETH_USD".to_string(), OrderType::Sell), ("STQ_USD".to_string(), OrderType::Buy)],
+        (Currency::Stq, Currency::Eth) => vec![("STQ_USD".to_string(), OrderType::Sell), ("ETH_USD".to_string(), OrderType::Buy)],
+        (Currency::Stq, Currency::Stq) => vec![("STQ_STQ".to_string(), OrderType::Sell)],
+        (Currency::Btc, Currency::Btc) => vec![("BTC_BTC".to_string(), OrderType::Sell)],
+        (Currency::Eth, Currency::Eth) => vec![("ETH_ETH".to_string(), OrderType::Sell)],
     }
 }
 
@@ -82,7 +82,7 @@ pub fn get_exmo_type(from: Currency, to: Currency) -> Vec<(String, OrderType)> {
 /// if we are selling ETH or STQ we need to revert it
 pub fn need_revert(order_type: OrderType) -> bool {
     match order_type {
-        OrderType::Buy => false,
-        OrderType::Sell => true,
+        OrderType::Buy => true,
+        OrderType::Sell => false,
     }
 }
