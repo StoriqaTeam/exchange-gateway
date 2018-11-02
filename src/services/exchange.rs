@@ -183,20 +183,79 @@ impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
                                 .map_err(ectx!(try convert => pair, quantity, order_type, nonce)))
                                 ?;
 
-                            thread::sleep(Duration::from_millis(200));
+                            thread::sleep(Duration::from_millis(350));
 
-                            let data = Some(json!({"quantity": quantity, "pair": pair_clone, "order_id": order_id ,"status": "Getting Order info"}));
+                            // let data = Some(json!({"quantity": quantity, "pair": pair_clone, "order_id": order_id ,"status": "Getting Order info"}));
+                            let data = Some(json!({"quantity": quantity, "pair": pair_clone,"status": "Getting Order info"}));
+                            let nonce = sell_orders_repo
+                                .create(NewSellOrder::new(data.clone()))
+                                .map_err(ectx!(try convert => data))
+                                .map(|c| c.id)?;
+                            
+                            let r : Result<(f64, f64), Error>= core.run( exmo_client
+                                .get_order_status(order_id, nonce.inner())
+                                .map_err(ectx!(convert => order_id, nonce)))
+                                ;
+
+                            debug!("get_order_status - {:?}", r);
+
+                            thread::sleep(Duration::from_millis(350));
+                            let data = Some(json!({"quantity": quantity, "pair": pair_clone,"status": "Getting Order info"}));
                             let nonce = sell_orders_repo
                                 .create(NewSellOrder::new(data.clone()))
                                 .map_err(ectx!(try convert => data))
                                 .map(|c| c.id)?;
 
+                            let r : Result<(f64, f64), Error> = core.run(exmo_client
+                                .canceled_orders(nonce.inner())
+                                .map_err(ectx!( convert => nonce)));
+
+                            debug!("canceled_orders - {:?}", r);
+
+                            thread::sleep(Duration::from_millis(350));
+                            let data = Some(json!({"quantity": quantity, "pair": pair_clone,"status": "Getting Order info"}));
+                            let nonce = sell_orders_repo
+                                .create(NewSellOrder::new(data.clone()))
+                                .map_err(ectx!(try convert => data))
+                                .map(|c| c.id)?;
+                            
+                            let r : Result<(f64, f64), Error> = core.run( exmo_client
+                                .user_open_orders(nonce.inner())
+                                .map_err(ectx!( convert => nonce)));
+                            
+                            debug!("user_open_orders - {:?}", r);
+
+                            thread::sleep(Duration::from_millis(350));
+                            let data = Some(json!({"quantity": quantity, "pair": pair_clone,"status": "Getting Order info"}));
+                            let nonce = sell_orders_repo
+                                .create(NewSellOrder::new(data.clone()))
+                                .map_err(ectx!(try convert => data))
+                                .map(|c| c.id)?;
+                            
+                            let r : Result<(f64, f64), Error> = core.run( exmo_client
+                                .get_user_trades("STQ_BTC".to_string(),nonce.inner())
+                                .map_err(ectx!( convert => nonce)))
+                                ;
+
+                            debug!("get_user_trades STQ_BTC - {:?}", r);
+                           
+                            thread::sleep(Duration::from_millis(350));
+                            let data = Some(json!({"quantity": quantity, "pair": pair_clone,"status": "Getting Order info"}));
+                            let nonce = sell_orders_repo
+                                .create(NewSellOrder::new(data.clone()))
+                                .map_err(ectx!(try convert => data))
+                                .map(|c| c.id)?;
+                            
                             let (in_amount, out_amount) = core.run( exmo_client
-                                .get_order_status(order_id, nonce.inner())
-                                .map_err(ectx!(try convert => order_id, nonce)))
+                                .get_user_trades("ETH_BTC".to_string(),nonce.inner())
+                                .map_err(ectx!(try convert => nonce)))
                                 ?;
 
-                            let data = Some(json!({"in_amount": in_amount, "out_amount": out_amount, "pair": pair_clone, "order_id": order_id ,"status": "Order info"}));
+                            debug!("get_user_trades ETH_BTC - {:?}", r);
+
+                            // let data = Some(json!({"in_amount": in_amount, "out_amount": out_amount, "pair": pair_clone, "order_id": order_id ,"status": "Order info"}));
+                            thread::sleep(Duration::from_millis(350));
+                            let data = Some(json!({"in_amount": in_amount, "out_amount": out_amount, "pair": pair_clone,"status": "Order info"}));
                             let _ = sell_orders_repo
                                 .create(NewSellOrder::new(data.clone()));
 
