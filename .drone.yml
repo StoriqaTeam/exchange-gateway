@@ -79,7 +79,7 @@ pipeline:
   package:
     group: package
     image: plugins/docker
-    repo: storiqateam/exchange-gateway
+    repo: storiqateam/payments-exchange-gateway
     tags:
     - ${DRONE_BRANCH//\//_}
     - ${DRONE_BRANCH//\//_}${DRONE_BUILD_NUMBER}
@@ -90,7 +90,7 @@ pipeline:
       event: push
   package:
     image: plugins/docker
-    repo: storiqateam/exchange-gateway
+    repo: storiqateam/payments-exchange-gateway
     build_args:
     - env=release
     tags:
