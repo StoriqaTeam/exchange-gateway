@@ -32,6 +32,7 @@ pub struct Options {
     pub expiration: u64, // seconds
     pub rate_upside: f64,
     pub safety_threshold: f64,
+    pub test_environment: bool,
 }
 
 #[derive(Debug, Deserialize, Clone)]
