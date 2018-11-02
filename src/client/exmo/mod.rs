@@ -1,9 +1,11 @@
 mod error;
 mod responses;
+mod seeds;
 
 pub use self::error::*;
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use crypto::hmac::Hmac;
 use crypto::mac::Mac;
@@ -160,24 +162,63 @@ impl ExmoClient for ExmoClientImpl {
     }
 }
 
-#[derive(Default)]
-pub struct ExmoClientMock;
+pub struct ExmoClientMock {
+    data: Arc<Mutex<HashMap<String, ExmoBook>>>,
+    orders: Arc<Mutex<Vec<ExmoOrder>>>,
+}
+
+impl Default for ExmoClientMock {
+    fn default() -> Self {
+        let orders = Arc::new(Mutex::new(vec![]));
+        let stq_book = seeds::get_stq_btc();
+        let eth_book = seeds::get_eth_btc();
+        let mut data_hash = HashMap::new();
+        data_hash.insert("STQ_BTC".to_string(), stq_book);
+        data_hash.insert("ETH_BTC".to_string(), eth_book);
+        let data = Arc::new(Mutex::new(data_hash));
+        Self { data, orders }
+    }
+}
 
 impl ExmoClient for ExmoClientMock {
     fn create_order(
         &self,
-        _pair: String,
-        _quantity: f64,
-        _order_type: OrderType,
+        pair: String,
+        quantity: f64,
+        order_type: OrderType,
         _nonce: i32,
     ) -> Box<Future<Item = u64, Error = Error> + Send> {
-        Box::new(Ok(1u64).into_future())
+        let mut orders = self.orders.lock().unwrap();
+        let data = self.data.lock().unwrap();
+
+        let book = if let Some(book) = data.get(&pair) {
+            book.clone()
+        } else {
+            ExmoBook::default()
+        };
+        let price = book.get_rate(quantity, order_type).unwrap_or_default();
+        let amount = price * quantity;
+        let order = ExmoOrder::new(price, quantity, amount);
+        orders.push(order);
+        Box::new(Ok((orders.len() - 1) as u64).into_future())
     }
-    fn get_order_status(&self, _order_id: u64, _nonce: i32) -> Box<Future<Item = (f64, f64), Error = Error> + Send> {
-        Box::new(Ok((1f64, 1f64)).into_future())
+    fn get_order_status(&self, order_id: u64, _nonce: i32) -> Box<Future<Item = (f64, f64), Error = Error> + Send> {
+        let orders = self.orders.lock().unwrap();
+        let (in_amount, out_amount) = if let Some(order) = orders.iter().nth(order_id as usize) {
+            (order.quantity, order.quantity * 2f64)
+        } else {
+            (1f64, 1f64)
+        };
+        Box::new(Ok((in_amount, out_amount)).into_future())
     }
-    fn get_book(&self, _pair: String) -> Box<Future<Item = ExmoBook, Error = Error> + Send> {
-        Box::new(Ok(ExmoBook::default()).into_future())
+    fn get_book(&self, pair: String) -> Box<Future<Item = ExmoBook, Error = Error> + Send> {
+        let data = self.data.lock().unwrap();
+        let book = if let Some(book) = data.get(&pair) {
+            book.clone()
+        } else {
+            ExmoBook::default()
+        };
+        Box::new(Ok(book).into_future())
     }
     fn get_user_trades(&self, _pair: String, _nonce: i32) -> Box<Future<Item = (f64, f64), Error = Error> + Send> {
         Box::new(Ok((1f64, 1f64)).into_future())

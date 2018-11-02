@@ -14,7 +14,7 @@ use r2d2::Pool;
 
 use super::config::Config;
 use super::utils::{log_and_capture_error, log_error, log_warn};
-use client::{ExmoClient, ExmoClientImpl, HttpClientImpl};
+use client::{ExmoClient, ExmoClientImpl, ExmoClientMock, HttpClientImpl};
 use repos::{DbExecutorImpl, ExchangesRepoImpl, SellOrdersRepoImpl, UsersRepoImpl};
 use utils::read_body;
 
@@ -41,7 +41,11 @@ pub struct ApiService {
 impl ApiService {
     fn from_config(config: &Config) -> Result<Self, Error> {
         let client = HttpClientImpl::new(config);
-        let exmo_client = ExmoClientImpl::new(&config, client);
+        let exmo_client: Arc<dyn ExmoClient> = if config.exchange_options.test_environment {
+            Arc::new(ExmoClientMock::default())
+        } else {
+            Arc::new(ExmoClientImpl::new(&config, client))
+        };
         let server_address = format!("{}:{}", config.server.host, config.server.port)
             .parse::<SocketAddr>()
             .map_err(ectx!(try
@@ -60,7 +64,7 @@ impl ApiService {
         let cpu_pool = CpuPool::new(config.cpu_pool.size);
         Ok(ApiService {
             config: config.clone(),
-            exmo_client: Arc::new(exmo_client),
+            exmo_client,
             server_address,
             db_pool,
             cpu_pool,
