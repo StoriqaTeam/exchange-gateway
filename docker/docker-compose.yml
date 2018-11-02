@@ -34,8 +34,8 @@ services:
       - POSTGRES_USER=exchange-gateway
       - POSTGRES_DB=exchange-gateway
       - POSTGRES_PASSWORD=exchange-gateway
-    expose:
-      - 5432
+    ports:
+      - 5434:5432
 
 volumes:
   stq-exchange-gateway-postgres-data:

@@ -1,6 +1,7 @@
 #![allow(proc_macro_derive_resolution_fallback)]
 
 extern crate crypto;
+#[macro_use]
 extern crate failure;
 extern crate futures;
 #[macro_use]
