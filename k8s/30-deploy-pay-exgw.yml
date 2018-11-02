@@ -1,28 +1,28 @@
 apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
-  name: exchange-gateway
+  name: payments-exchange-gateway
   labels:
-    stack: exchange
+    stack: payments
     app: gateway
 spec:
   selector:
     matchLabels:
       app: gateway
-      stack: exchange
+      stack: payments
   replicas: 1
   template:
     metadata:
-      name: exchange-gateway
+      name: payments-exchange-gateway
       labels:
         app: gateway
-        stack: exchange
+        stack: payments
     spec:
       imagePullSecrets:
       - name: stq
       containers:
-      - name: gateway
-        image: storiqateam/exchange-gateway
+      - name: exchange-gateway
+        image: storiqateam/payments-exchange-gateway
         ports:
         - containerPort: 8000
         env:
@@ -35,7 +35,7 @@ spec:
         - name: DATABASE_HOST
           value: postgres
         - name: DATABASE_URL
-          value: postgresql://gateway:gateway@postgres/gateway
+          value: postgresql://exgw:exgw@postgres/exgw
         volumeMounts:
         - name: conf
           mountPath: /app/config/

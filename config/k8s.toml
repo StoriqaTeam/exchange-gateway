@@ -1,7 +1,3 @@
-[server]
-host = "0.0.0.0"
-port = 8000
-
 [auth]
 exmo_api_key = "K-c9e22a5ca68487558a2b1d049daed37c16b25ccc"
 exmo_api_secret = "S-1f1b712612c94a7ab40f76055d7a731681e2bc6f"
@@ -11,7 +7,7 @@ dns_threads = 4
 exmo_url = "https://stable.stq.cloud/graphql"
 
 [database]
-url = "postgresql://exchange-gateway:exchange-gateway@exchange-gateway-pg/exchange-gateway"
+url = "postgresql://exchange-gateway:exchange-gateway@postgres/exchange-gateway"
 
 [cpu_pool]
 size = 1
