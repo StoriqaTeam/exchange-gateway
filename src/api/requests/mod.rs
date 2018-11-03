@@ -41,6 +41,7 @@ pub struct PostExchangeRequest {
     pub from: Currency,
     pub to: Currency,
     pub actual_amount: Amount,
+    pub amount_currency: Currency,
 }
 
 impl From<PostExchangeRequest> for CreateSellOrder {
@@ -50,6 +51,7 @@ impl From<PostExchangeRequest> for CreateSellOrder {
             from: req.from,
             to: req.to,
             actual_amount: req.actual_amount,
+            amount_currency: req.amount_currency,
         }
     }
 }
@@ -61,6 +63,7 @@ pub struct PostRateRequest {
     pub from: Currency,
     pub to: Currency,
     pub amount: Amount,
+    pub amount_currency: Currency,
 }
 
 impl From<PostRateRequest> for GetRate {
@@ -70,6 +73,7 @@ impl From<PostRateRequest> for GetRate {
             from: req.from,
             to: req.to,
             amount: req.amount,
+            amount_currency: req.amount_currency,
         }
     }
 }

@@ -53,10 +53,10 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
         }
     }
 
-    fn get_current_rate(&self, from: Currency, to: Currency, amount: Amount) -> ServiceFuture<f64> {
+    fn get_current_rate(&self, from: Currency, to: Currency, amount: Amount, amount_currency: Currency) -> ServiceFuture<f64> {
         let exmo_client = self.exmo_client.clone();
         let amount = from.to_f64(amount);
-        let currencies_exchange = get_exmo_type(from, to);
+        let currencies_exchange = get_exmo_type(from, to, amount_currency);
         Box::new(
             iter_ok::<_, Error>(currencies_exchange)
                 .fold((amount, 1f64), move |(quantity, rate), currency_exchange| {
@@ -83,11 +83,12 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
         let sell_orders_repo = self.sell_orders_repo.clone();
         let from = exchange.from_;
         let to = exchange.to_;
+        let amount_currency = exchange.amount_currency;
         Box::new(
             db_executor
                 .execute_transaction_with_isolation(Isolation::Serializable, move || {
                     let mut core = Core::new().unwrap();
-                    get_exmo_type(from, to)
+                    get_exmo_type(from, to, amount_currency)
                         .into_iter()
                         .try_fold(from.to_f64(quantity), move |quantity, currency_exchange| {
                             let (pair, order_type) = currency_exchange;
@@ -143,6 +144,7 @@ impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
         let service = self.clone();
         let service2 = self.clone();
         let amount = input.actual_amount;
+        let amount_currency = input.amount_currency;
         Box::new(self.auth_service.authenticate(token).and_then(move |user| {
                 validate(input.from, input.actual_amount, limits)
                 .map_err(|e| ectx!(err e.clone(), ErrorKind::InvalidInput(e) => input))
@@ -164,7 +166,7 @@ impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
                             } else {
                                 let input_clone = input_clone2.clone();
                                 let users_rate = exchange.rate;
-                                Either::B(service.get_current_rate(from, to, amount).and_then(move |current_rate| {
+                                Either::B(service.get_current_rate(from, to, amount, amount_currency).and_then(move |current_rate| {
                                     let safety_rate = current_rate / (1f64 + safety_threshold);
                                     // we recalculate current_rate with safety_threshold, for not to loose on conversion, example:
                                     // if current_rate is 10, rate_for_user (exchange.rate) is 9, safety threshold = 0,05:
@@ -196,8 +198,10 @@ impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
         let to = input.to;
         let service = self.clone();
         let limits = self.limits.clone();
+        let amount_currency = input.amount_currency;
+
         Box::new(self.auth_service.authenticate(token).and_then(move |user| {
-            service.get_current_rate(from, to, amount).and_then(move |rate| {
+            service.get_current_rate(from, to, amount, amount_currency).and_then(move |rate| {
                 db_executor.execute(move || {
                     // we recalculate rate with rate_upside, for not to loose on conversion, example:
                     // if rate is 10 - it means that for 1 BTC one will receive 10 ETH
@@ -276,22 +280,22 @@ mod tests {
         let user_id = UserId::generate();
         let service = create_sell_service(token.clone(), user_id);
 
-        let rate = core.run(service.get_current_rate(Currency::Eth, Currency::Btc, Amount::new(ETH_DECIMALS)));
+        let rate = core.run(service.get_current_rate(Currency::Eth, Currency::Btc, Amount::new(ETH_DECIMALS),Currency::Eth));
         assert!(rate.is_ok());
 
-        let rate = core.run(service.get_current_rate(Currency::Btc, Currency::Eth, Amount::new(BTC_DECIMALS)));
+        let rate = core.run(service.get_current_rate(Currency::Btc, Currency::Eth, Amount::new(BTC_DECIMALS),Currency::Eth));
         assert!(rate.is_ok());
 
-        let rate = core.run(service.get_current_rate(Currency::Stq, Currency::Btc, Amount::new(STQ_DECIMALS)));
+        let rate = core.run(service.get_current_rate(Currency::Stq, Currency::Btc, Amount::new(STQ_DECIMALS),Currency::Eth));
         assert!(rate.is_ok());
 
-        let rate = core.run(service.get_current_rate(Currency::Btc, Currency::Stq, Amount::new(BTC_DECIMALS)));
+        let rate = core.run(service.get_current_rate(Currency::Btc, Currency::Stq, Amount::new(BTC_DECIMALS),Currency::Eth));
         assert!(rate.is_ok());
 
-        let rate = core.run(service.get_current_rate(Currency::Stq, Currency::Eth, Amount::new(STQ_DECIMALS)));
+        let rate = core.run(service.get_current_rate(Currency::Stq, Currency::Eth, Amount::new(STQ_DECIMALS),Currency::Eth));
         assert!(rate.is_ok());
 
-        let rate = core.run(service.get_current_rate(Currency::Eth, Currency::Stq, Amount::new(ETH_DECIMALS)));
+        let rate = core.run(service.get_current_rate(Currency::Eth, Currency::Stq, Amount::new(ETH_DECIMALS),Currency::Eth));
         assert!(rate.is_ok());
     }
 }

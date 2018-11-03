@@ -263,37 +263,73 @@ mod tests {
     }
 
     #[test]
-    fn test_exmo_get_rates() {
+    fn test_exmo_get_rates_straight() {
         let client = create_client();
         let mut core = Core::new().unwrap();
 
-        let input = get_exmo_type(Currency::Eth, Currency::Btc);
+        let input = get_exmo_type(Currency::Eth, Currency::Btc, Currency::Eth);
         let amount = Currency::Eth.to_f64(Amount::new(ETH_DECIMALS));
         let rate = core.run(get_rate(&client, input.clone(), amount)).unwrap();
         assert!(rate < 1f64);
 
-        let input = get_exmo_type(Currency::Btc, Currency::Eth);
+        let input = get_exmo_type(Currency::Btc, Currency::Eth, Currency::Btc);
         let amount = Currency::Btc.to_f64(Amount::new(BTC_DECIMALS));
         let rate = core.run(get_rate(&client, input.clone(), amount)).unwrap();
         assert!(rate > 1f64);
 
-        let input = get_exmo_type(Currency::Stq, Currency::Btc);
+        let input = get_exmo_type(Currency::Stq, Currency::Btc, Currency::Stq);
         let amount = Currency::Stq.to_f64(Amount::new(STQ_DECIMALS));
         let rate = core.run(get_rate(&client, input.clone(), amount)).unwrap();
         assert!(rate < 1f64);
 
-        let input = get_exmo_type(Currency::Btc, Currency::Stq);
+        let input = get_exmo_type(Currency::Btc, Currency::Stq, Currency::Btc);
         let amount = Currency::Btc.to_f64(Amount::new(BTC_DECIMALS));
         let rate = core.run(get_rate(&client, input.clone(), amount)).unwrap();
         assert!(rate > 1f64);
 
-        let input = get_exmo_type(Currency::Stq, Currency::Eth);
+        let input = get_exmo_type(Currency::Stq, Currency::Eth, Currency::Stq);
         let amount = Currency::Stq.to_f64(Amount::new(STQ_DECIMALS));
         let rate = core.run(get_rate(&client, input.clone(), amount)).unwrap();
         assert!(rate < 1f64);
 
-        let input = get_exmo_type(Currency::Eth, Currency::Stq);
+        let input = get_exmo_type(Currency::Eth, Currency::Stq, Currency::Eth);
         let amount = Currency::Eth.to_f64(Amount::new(ETH_DECIMALS));
+        let rate = core.run(get_rate(&client, input.clone(), amount)).unwrap();
+        assert!(rate > 1f64);
+    }
+    
+    #[test]
+    fn test_exmo_get_rates_invert() {
+        let client = create_client();
+        let mut core = Core::new().unwrap();
+
+        let input = get_exmo_type(Currency::Eth, Currency::Btc, Currency::Btc);
+        let amount = Currency::Btc.to_f64(Amount::new(BTC_DECIMALS));
+        let rate = core.run(get_rate(&client, input.clone(), amount)).unwrap();
+        assert!(rate < 1f64);
+
+        let input = get_exmo_type(Currency::Btc, Currency::Eth, Currency::Eth);
+        let amount = Currency::Eth.to_f64(Amount::new(ETH_DECIMALS));
+        let rate = core.run(get_rate(&client, input.clone(), amount)).unwrap();
+        assert!(rate > 1f64);
+
+        let input = get_exmo_type(Currency::Stq, Currency::Btc, Currency::Btc);
+        let amount = Currency::Btc.to_f64(Amount::new(BTC_DECIMALS));
+        let rate = core.run(get_rate(&client, input.clone(), amount)).unwrap();
+        assert!(rate < 1f64);
+
+        let input = get_exmo_type(Currency::Btc, Currency::Stq, Currency::Stq);
+        let amount = Currency::Stq.to_f64(Amount::new(STQ_DECIMALS));
+        let rate = core.run(get_rate(&client, input.clone(), amount)).unwrap();
+        assert!(rate > 1f64);
+
+        let input = get_exmo_type(Currency::Stq, Currency::Eth, Currency::Eth);
+        let amount = Currency::Eth.to_f64(Amount::new(ETH_DECIMALS));
+        let rate = core.run(get_rate(&client, input.clone(), amount)).unwrap();
+        assert!(rate < 1f64);
+
+        let input = get_exmo_type(Currency::Eth, Currency::Stq, Currency::Stq);
+        let amount = Currency::Stq.to_f64(Amount::new(STQ_DECIMALS));
         let rate = core.run(get_rate(&client, input.clone(), amount)).unwrap();
         assert!(rate > 1f64);
     }

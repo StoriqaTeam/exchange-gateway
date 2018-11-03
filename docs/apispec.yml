@@ -184,6 +184,7 @@ components:
         - to
         - rate
         - actualAmount
+        - amountCurrency
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
@@ -195,6 +196,8 @@ components:
           $ref: '#/components/schemas/Rate'
         actualAmount:
           $ref: '#/components/schemas/Value'
+        amountCurrency:
+          $ref: '#/components/schemas/Currency'
     RateInput:
       type: object
       required:
@@ -202,6 +205,7 @@ components:
         - from
         - to
         - amount
+        - amountCurrency
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
@@ -211,6 +215,8 @@ components:
           $ref: '#/components/schemas/Currency'
         amount:
           $ref: '#/components/schemas/Value'
+        amountCurrency:
+          $ref: '#/components/schemas/Currency'
 
     AccountAddress:
       type: string

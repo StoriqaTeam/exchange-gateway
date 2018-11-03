@@ -19,6 +19,7 @@ pub struct Exchange {
     pub user_id: UserId,
     pub created_at: SystemTime,
     pub updated_at: SystemTime,
+    pub amount_currency: Currency,
 }
 
 impl Default for Exchange {
@@ -33,6 +34,7 @@ impl Default for Exchange {
             user_id: UserId::generate(),
             created_at: SystemTime::now(),
             updated_at: SystemTime::now(),
+            amount_currency: Currency::Eth,
         }
     }
 }
@@ -47,6 +49,7 @@ impl From<NewExchange> for Exchange {
             rate: new_exchange.rate,
             expiration: new_exchange.expiration,
             user_id: new_exchange.user_id,
+            amount_currency: new_exchange.amount_currency,
             ..Default::default()
         }
     }
@@ -62,6 +65,7 @@ pub struct NewExchange {
     pub expiration: SystemTime,
     pub rate: f64,
     pub user_id: UserId,
+    pub amount_currency: Currency,
 }
 
 impl Default for NewExchange {
@@ -74,6 +78,7 @@ impl Default for NewExchange {
             expiration: SystemTime::now(),
             rate: 0.34343,
             user_id: UserId::generate(),
+            amount_currency: Currency::Eth,
         }
     }
 }
@@ -84,6 +89,7 @@ pub struct CreateSellOrder {
     pub from: Currency,
     pub to: Currency,
     pub actual_amount: Amount,
+    pub amount_currency: Currency,
 }
 
 impl From<CreateSellOrder> for GetExchange {
@@ -93,6 +99,7 @@ impl From<CreateSellOrder> for GetExchange {
             from: sell.from,
             to: sell.to,
             actual_amount: sell.actual_amount,
+            amount_currency: sell.amount_currency,
         }
     }
 }
@@ -104,6 +111,7 @@ impl Default for CreateSellOrder {
             from: Currency::Eth,
             to: Currency::Btc,
             actual_amount: Amount::default(),
+            amount_currency: Currency::Eth,
         }
     }
 }
@@ -142,6 +150,7 @@ pub struct GetExchange {
     pub from: Currency,
     pub to: Currency,
     pub actual_amount: Amount,
+    pub amount_currency: Currency,
 }
 
 impl Default for GetExchange {
@@ -151,6 +160,7 @@ impl Default for GetExchange {
             from: Currency::Eth,
             to: Currency::Btc,
             actual_amount: Amount::default(),
+            amount_currency: Currency::Eth,
         }
     }
 }
@@ -161,6 +171,7 @@ pub struct GetRate {
     pub from: Currency,
     pub to: Currency,
     pub amount: Amount,
+    pub amount_currency: Currency,
 }
 
 impl NewExchange {
@@ -170,6 +181,7 @@ impl NewExchange {
             from_: req.from,
             to_: req.to,
             amount: req.amount,
+            amount_currency: req.amount_currency,
             expiration,
             rate,
             user_id,
@@ -184,6 +196,7 @@ impl Default for GetRate {
             from: Currency::Eth,
             to: Currency::Btc,
             amount: Amount::default(),
+            amount_currency: Currency::Eth,
         }
     }
 }
