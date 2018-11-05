@@ -81,8 +81,14 @@ pub fn get_exmo_type(from: Currency, to: Currency, amount_currency: Currency) ->
             (Currency::Eth, Currency::Btc) => vec![("ETH_BTC".to_string(), OrderType::SellTotal)],
             (Currency::Btc, Currency::Stq) => vec![("STQ_BTC".to_string(), OrderType::BuyTotal)],
             (Currency::Stq, Currency::Btc) => vec![("STQ_BTC".to_string(), OrderType::SellTotal)],
-            (Currency::Eth, Currency::Stq) => vec![("STQ_USD".to_string(), OrderType::BuyTotal), ("ETH_USD".to_string(), OrderType::SellTotal)],
-            (Currency::Stq, Currency::Eth) => vec![("ETH_USD".to_string(), OrderType::BuyTotal), ("STQ_USD".to_string(), OrderType::SellTotal)],
+            (Currency::Eth, Currency::Stq) => vec![
+                ("STQ_USD".to_string(), OrderType::BuyTotal),
+                ("ETH_USD".to_string(), OrderType::SellTotal),
+            ],
+            (Currency::Stq, Currency::Eth) => vec![
+                ("ETH_USD".to_string(), OrderType::BuyTotal),
+                ("STQ_USD".to_string(), OrderType::SellTotal),
+            ],
             (Currency::Stq, Currency::Stq) => vec![("STQ_STQ".to_string(), OrderType::SellTotal)],
             (Currency::Btc, Currency::Btc) => vec![("BTC_BTC".to_string(), OrderType::SellTotal)],
             (Currency::Eth, Currency::Eth) => vec![("ETH_ETH".to_string(), OrderType::SellTotal)],

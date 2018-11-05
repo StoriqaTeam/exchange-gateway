@@ -146,7 +146,7 @@ impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
         let amount = input.actual_amount;
         let amount_currency = input.amount_currency;
         Box::new(self.auth_service.authenticate(token).and_then(move |user| {
-                validate(input.from, input.actual_amount, limits)
+            validate(input.from, input.actual_amount, limits)
                 .map_err(|e| ectx!(err e.clone(), ErrorKind::InvalidInput(e) => input))
                 .into_future()
                 .and_then(move |_| {
@@ -166,21 +166,25 @@ impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
                             } else {
                                 let input_clone = input_clone2.clone();
                                 let users_rate = exchange.rate;
-                                Either::B(service.get_current_rate(from, to, amount, amount_currency).and_then(move |current_rate| {
-                                    let safety_rate = current_rate / (1f64 + safety_threshold);
-                                    // we recalculate current_rate with safety_threshold, for not to loose on conversion, example:
-                                    // if current_rate is 10, rate_for_user (exchange.rate) is 9, safety threshold = 0,05:
-                                    // then safety_rate = 10 / 1,05, it is still higher then rate for user - we don't loose, Ok!
-                                    // if current_rate is 9, rate_for_user (exchange.rate) is 9, safety threshold = 0,05:
-                                    // then safety_rate = 9 / 1,05, it is lower then rate for user - we loose, Error!
-                                    if safety_rate > users_rate {
-                                        Either::A(service2.start_selling(exchange, input_clone.actual_amount))
-                                    } else {
-                                        Either::B(future::err(
-                                            ectx!(err ErrorContext::NoSuchRate, ErrorKind::Internal => safety_rate, users_rate),
-                                        ))
-                                    }
-                                }))
+                                Either::B(
+                                    service
+                                        .get_current_rate(from, to, amount, amount_currency)
+                                        .and_then(move |current_rate| {
+                                            let safety_rate = current_rate / (1f64 + safety_threshold);
+                                            // we recalculate current_rate with safety_threshold, for not to loose on conversion, example:
+                                            // if current_rate is 10, rate_for_user (exchange.rate) is 9, safety threshold = 0,05:
+                                            // then safety_rate = 10 / 1,05, it is still higher then rate for user - we don't loose, Ok!
+                                            // if current_rate is 9, rate_for_user (exchange.rate) is 9, safety threshold = 0,05:
+                                            // then safety_rate = 9 / 1,05, it is lower then rate for user - we loose, Error!
+                                            if safety_rate > users_rate {
+                                                Either::A(service2.start_selling(exchange, input_clone.actual_amount))
+                                            } else {
+                                                Either::B(future::err(
+                                                    ectx!(err ErrorContext::NoSuchRate, ErrorKind::Internal => safety_rate, users_rate),
+                                                ))
+                                            }
+                                        }),
+                                )
                             }
                         })
                 })
@@ -280,22 +284,22 @@ mod tests {
         let user_id = UserId::generate();
         let service = create_sell_service(token.clone(), user_id);
 
-        let rate = core.run(service.get_current_rate(Currency::Eth, Currency::Btc, Amount::new(ETH_DECIMALS),Currency::Eth));
+        let rate = core.run(service.get_current_rate(Currency::Eth, Currency::Btc, Amount::new(ETH_DECIMALS), Currency::Eth));
         assert!(rate.is_ok());
 
-        let rate = core.run(service.get_current_rate(Currency::Btc, Currency::Eth, Amount::new(BTC_DECIMALS),Currency::Eth));
+        let rate = core.run(service.get_current_rate(Currency::Btc, Currency::Eth, Amount::new(BTC_DECIMALS), Currency::Eth));
         assert!(rate.is_ok());
 
-        let rate = core.run(service.get_current_rate(Currency::Stq, Currency::Btc, Amount::new(STQ_DECIMALS),Currency::Eth));
+        let rate = core.run(service.get_current_rate(Currency::Stq, Currency::Btc, Amount::new(STQ_DECIMALS), Currency::Eth));
         assert!(rate.is_ok());
 
-        let rate = core.run(service.get_current_rate(Currency::Btc, Currency::Stq, Amount::new(BTC_DECIMALS),Currency::Eth));
+        let rate = core.run(service.get_current_rate(Currency::Btc, Currency::Stq, Amount::new(BTC_DECIMALS), Currency::Eth));
         assert!(rate.is_ok());
 
-        let rate = core.run(service.get_current_rate(Currency::Stq, Currency::Eth, Amount::new(STQ_DECIMALS),Currency::Eth));
+        let rate = core.run(service.get_current_rate(Currency::Stq, Currency::Eth, Amount::new(STQ_DECIMALS), Currency::Eth));
         assert!(rate.is_ok());
 
-        let rate = core.run(service.get_current_rate(Currency::Eth, Currency::Stq, Amount::new(ETH_DECIMALS),Currency::Eth));
+        let rate = core.run(service.get_current_rate(Currency::Eth, Currency::Stq, Amount::new(ETH_DECIMALS), Currency::Eth));
         assert!(rate.is_ok());
     }
 }

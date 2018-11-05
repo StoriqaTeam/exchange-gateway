@@ -47,13 +47,17 @@ mod sentry_integration;
 mod services;
 mod utils;
 
+use std::str::FromStr;
+
 use config::Config;
 
 use diesel::pg::PgConnection;
 use diesel::r2d2::ConnectionManager;
 use futures_cpupool::CpuPool;
+use uuid::Uuid;
 
 use self::models::NewUser;
+use self::models::*;
 use self::prelude::*;
 use self::repos::{DbExecutor, DbExecutorImpl, Error as ReposError, UsersRepo, UsersRepoImpl};
 
@@ -76,14 +80,19 @@ fn get_config() -> Config {
     config::Config::new().unwrap_or_else(|e| panic!("Error parsing config: {}", e))
 }
 
-pub fn create_user(name: &str) {
+pub fn create_user(name: &str, uuid: &str, token: &str) {
+    let id = UserId::new(Uuid::from_str(uuid).expect(&format!("Cannot parse uuid `{}`", uuid)));
+    let token = AuthenticationToken::new(token.to_string());
     let config = get_config();
     let db_pool = create_db_pool(&config);
     let cpu_pool = CpuPool::new(1);
     let users_repo = UsersRepoImpl;
     let db_executor = DbExecutorImpl::new(db_pool, cpu_pool);
-    let mut new_user: NewUser = Default::default();
-    new_user.name = name.to_string();
+    let new_user: NewUser = NewUser {
+        id,
+        name: name.to_string(),
+        authentication_token: token,
+    };
     let fut = db_executor.execute(move || -> Result<(), ReposError> {
         let user = users_repo.create(new_user).expect("Failed to create user");
         println!("{}", user.authentication_token.raw());

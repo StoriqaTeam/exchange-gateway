@@ -18,7 +18,9 @@ fn main() {
         exchange_gateway_lib::start_server();
     } else if let Some(matches) = matches.subcommand_matches("create_user") {
         let name = matches.value_of("name").unwrap();
-        exchange_gateway_lib::create_user(&name);
+        let uuid = matches.value_of("uuid").unwrap();
+        let token = matches.value_of("token").unwrap();
+        exchange_gateway_lib::create_user(&name, &uuid, &token);
     } else {
         let _ = app.print_help();
         println!("\n")
