@@ -102,8 +102,8 @@ impl ExmoBook {
     /// with enough quantity, after that we calculate weighted average
     pub fn get_rate(&self, needed_quantity: f64, type_: OrderType) -> Result<f64, Error> {
         let orders = match type_ {
-            OrderType::Buy | OrderType::BuyTotal  => self.ask.iter(),
-            OrderType::Sell | OrderType::SellTotal => self.bid.iter(),
+            OrderType::Buy | OrderType::SellTotal => self.ask.iter(),
+            OrderType::Sell | OrderType::BuyTotal => self.bid.iter(),
         };
         let mut needed_orders = vec![];
         let mut total_quantity = 0f64;
