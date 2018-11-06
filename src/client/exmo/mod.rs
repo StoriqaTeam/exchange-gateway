@@ -297,7 +297,7 @@ mod tests {
         let rate = core.run(get_rate(&client, input.clone(), amount)).unwrap();
         assert!(rate > 1f64);
     }
-    
+
     #[test]
     fn test_exmo_get_rates_invert() {
         let client = create_client();
