@@ -63,38 +63,35 @@ pub fn read_body(body: hyper::Body) -> impl Future<Item = Vec<u8>, Error = hyper
 /// All exchanges are done for prices in BTC, therefore
 /// we need to set what we need to do - sell, or buy
 pub fn get_exmo_type(from: Currency, to: Currency, amount_currency: Currency) -> Vec<(String, OrderType)> {
-    if amount_currency == from {
-        match (from, to) {
-            (Currency::Btc, Currency::Eth) => vec![("ETH_BTC".to_string(), OrderType::Buy)],
-            (Currency::Eth, Currency::Btc) => vec![("ETH_BTC".to_string(), OrderType::Sell)],
-            (Currency::Btc, Currency::Stq) => vec![("STQ_BTC".to_string(), OrderType::Buy)],
-            (Currency::Stq, Currency::Btc) => vec![("STQ_BTC".to_string(), OrderType::Sell)],
-            (Currency::Eth, Currency::Stq) => vec![("ETH_USD".to_string(), OrderType::Sell), ("STQ_USD".to_string(), OrderType::Buy)],
-            (Currency::Stq, Currency::Eth) => vec![("STQ_USD".to_string(), OrderType::Sell), ("ETH_USD".to_string(), OrderType::Buy)],
-            (Currency::Stq, Currency::Stq) => vec![("STQ_STQ".to_string(), OrderType::Sell)],
-            (Currency::Btc, Currency::Btc) => vec![("BTC_BTC".to_string(), OrderType::Sell)],
-            (Currency::Eth, Currency::Eth) => vec![("ETH_ETH".to_string(), OrderType::Sell)],
-        }
-    } else if amount_currency == to {
-        match (from, to) {
-            (Currency::Btc, Currency::Eth) => vec![("ETH_BTC".to_string(), OrderType::BuyTotal)],
-            (Currency::Eth, Currency::Btc) => vec![("ETH_BTC".to_string(), OrderType::SellTotal)],
-            (Currency::Btc, Currency::Stq) => vec![("STQ_BTC".to_string(), OrderType::BuyTotal)],
-            (Currency::Stq, Currency::Btc) => vec![("STQ_BTC".to_string(), OrderType::SellTotal)],
-            (Currency::Eth, Currency::Stq) => vec![
-                ("STQ_USD".to_string(), OrderType::BuyTotal),
-                ("ETH_USD".to_string(), OrderType::SellTotal),
-            ],
-            (Currency::Stq, Currency::Eth) => vec![
-                ("ETH_USD".to_string(), OrderType::BuyTotal),
-                ("STQ_USD".to_string(), OrderType::SellTotal),
-            ],
-            (Currency::Stq, Currency::Stq) => vec![("STQ_STQ".to_string(), OrderType::SellTotal)],
-            (Currency::Btc, Currency::Btc) => vec![("BTC_BTC".to_string(), OrderType::SellTotal)],
-            (Currency::Eth, Currency::Eth) => vec![("ETH_ETH".to_string(), OrderType::SellTotal)],
-        }
-    } else {
-        vec![] // no such conversion
+    match (from, to, amount_currency) {
+        (Currency::Btc, Currency::Eth, Currency::Btc) => vec![("ETH_BTC".to_string(), OrderType::BuyTotal)],
+        (Currency::Eth, Currency::Btc, Currency::Eth) => vec![("ETH_BTC".to_string(), OrderType::Sell)],
+        (Currency::Btc, Currency::Eth, Currency::Eth) => vec![("ETH_BTC".to_string(), OrderType::Buy)],
+        (Currency::Eth, Currency::Btc, Currency::Btc) => vec![("ETH_BTC".to_string(), OrderType::SellTotal)],
+
+        (Currency::Btc, Currency::Stq, Currency::Btc) => vec![("STQ_BTC".to_string(), OrderType::BuyTotal)],
+        (Currency::Stq, Currency::Btc, Currency::Stq) => vec![("STQ_BTC".to_string(), OrderType::Sell)],
+        (Currency::Btc, Currency::Stq, Currency::Stq) => vec![("STQ_BTC".to_string(), OrderType::Buy)],
+        (Currency::Stq, Currency::Btc, Currency::Btc) => vec![("STQ_BTC".to_string(), OrderType::SellTotal)],
+
+        (Currency::Eth, Currency::Stq, Currency::Eth) => vec![
+            ("ETH_USD".to_string(), OrderType::Sell),
+            ("STQ_USD".to_string(), OrderType::BuyTotal),
+        ],
+        (Currency::Eth, Currency::Stq, Currency::Stq) => vec![
+            ("ETH_USD".to_string(), OrderType::SellTotal),
+            ("STQ_USD".to_string(), OrderType::BuyTotal),
+        ],
+        (Currency::Stq, Currency::Eth, Currency::Stq) => vec![
+            ("STQ_USD".to_string(), OrderType::Sell),
+            ("ETH_USD".to_string(), OrderType::BuyTotal),
+        ],
+        (Currency::Stq, Currency::Eth, Currency::Eth) => vec![
+            ("STQ_USD".to_string(), OrderType::SellTotal),
+            ("ETH_USD".to_string(), OrderType::BuyTotal),
+        ],
+
+        _ => vec![],
     }
 }
 
