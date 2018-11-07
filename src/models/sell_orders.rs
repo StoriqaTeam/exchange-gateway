@@ -1,4 +1,4 @@
-use std::time::SystemTime;
+use chrono::NaiveDateTime;
 
 use serde_json::Value;
 
@@ -9,8 +9,8 @@ use schema::sell_orders;
 pub struct SellOrderDB {
     pub id: Nonce,
     pub data: Option<Value>,
-    pub created_at: SystemTime,
-    pub updated_at: SystemTime,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 impl Default for SellOrderDB {
@@ -18,8 +18,8 @@ impl Default for SellOrderDB {
         Self {
             id: Nonce::generate(),
             data: None,
-            created_at: SystemTime::now(),
-            updated_at: SystemTime::now(),
+            created_at: ::chrono::Utc::now().naive_utc(),
+            updated_at: ::chrono::Utc::now().naive_utc(),
         }
     }
 }

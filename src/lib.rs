@@ -1,5 +1,6 @@
 #![allow(proc_macro_derive_resolution_fallback)]
 
+extern crate chrono;
 extern crate crypto;
 #[macro_use]
 extern crate failure;
@@ -17,6 +18,7 @@ extern crate serde_json;
 extern crate serde_qs;
 #[macro_use]
 extern crate serde_derive;
+extern crate time;
 #[macro_use]
 extern crate log;
 extern crate config as config_crate;

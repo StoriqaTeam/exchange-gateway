@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use std::thread;
-use std::time::{Duration, SystemTime};
+use time::Duration;
 
 use futures::future::{self, Either};
 use futures::stream::iter_ok;
@@ -129,7 +129,7 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
                                 .map_err(ectx!(try convert => pair, quantity, order_type, nonce)))
                                 ?;
 
-                            thread::sleep(Duration::from_millis(200));
+                            thread::sleep(Duration::milliseconds(200).to_std().unwrap());
 
                             let data = Some(json!({"quantity": quantity, "pair": pair_clone, "order_id": order_id ,"status": "Getting Order info"}));
                             let nonce = sell_orders_repo
@@ -222,13 +222,12 @@ impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
         let exchange_repo = self.exchange_repo.clone();
         let db_executor = self.db_executor.clone();
         let rate_upside = self.rate_upside;
-        let expiration = SystemTime::now() + Duration::from_secs(self.expiration);
+        let expiration = ::chrono::Utc::now().naive_utc() + Duration::seconds(self.expiration as i64);
         let input_clone = input.clone();
         let amount = input.amount;
         let from = input.from;
         let to = input.to;
         let service = self.clone();
-        let limits = self.limits.clone();
         let amount_currency = input.amount_currency;
 
         Box::new(self.auth_service.authenticate(token).and_then(move |user| {
