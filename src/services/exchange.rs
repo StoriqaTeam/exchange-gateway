@@ -83,39 +83,46 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
 
     fn get_current_rate(&self, from: Currency, to: Currency, amount: Amount, amount_currency: Currency) -> ServiceFuture<f64> {
         let exmo_client = self.exmo_client.clone();
-        let amount = amount_currency.to_f64(amount);
         let currencies_exchange = get_exmo_type(from, to, amount_currency);
         Box::new(
-            iter_ok::<_, Error>(currencies_exchange)
-                .fold((amount, 1f64), move |(quantity, rate), currency_exchange| {
-                    let (pair, order_type) = currency_exchange;
-                    exmo_client
-                        .get_book(pair)
-                        .and_then(move |book| book.get_rate(quantity, order_type))
-                        .map_err(ectx!(convert => from, to, quantity))
-                        .and_then(move |mut res| {
-                            if need_revert(order_type) {
-                                res = 1f64 / res;
-                            };
-                            let new_rate = rate * res;
-                            let new_quantity = new_rate * quantity;
-                            Ok((new_quantity, new_rate)) as Result<(f64, f64), Error>
-                        })
-                }).map(|(_, rate)| rate),
+            self.recalc_default_quantity(from, to, amount, amount_currency)
+                .and_then(move |start_quantity| {
+                    iter_ok::<_, Error>(currencies_exchange)
+                        .fold(
+                            (amount_currency.to_f64(start_quantity), 1f64),
+                            move |(quantity, rate), currency_exchange| {
+                                let (pair, order_type) = currency_exchange;
+                                exmo_client
+                                    .get_book(pair)
+                                    .and_then(move |book| book.get_rate(quantity, order_type))
+                                    .map_err(ectx!(convert => from, to, quantity))
+                                    .and_then(move |mut res| {
+                                        debug!(" res = {}", res);
+                                        if need_revert(order_type) {
+                                            res = 1f64 / res;
+                                        };
+                                        let new_rate = rate * res;
+                                        let new_quantity = new_rate * quantity;
+                                        debug!(" new_rate = {}", new_rate);
+                                        Ok((new_quantity, new_rate)) as Result<(f64, f64), Error>
+                                    })
+                            },
+                        ).map(|(_, rate)| rate)
+                }),
         )
     }
 
     /// conversion from eth to stq is done through usd,
     /// though when amount_currency is equal to `to` we first need to know how much USD we need to buy
     fn recalc_default_quantity(&self, from: Currency, to: Currency, amount: Amount, amount_currency: Currency) -> ServiceFuture<Amount> {
-        let exmo_client = self.exmo_client.clone();
-        let quantity = amount_currency.to_f64(amount);
         let (pair, order_type) = match (from, to, amount_currency) {
-            (Currency::Eth, Currency::Stq, Currency::Stq) => ("STQ_USD".to_string(), OrderType::BuyTotal),
-            (Currency::Stq, Currency::Eth, Currency::Eth) => ("ETH_USD".to_string(), OrderType::BuyTotal),
+            (Currency::Eth, Currency::Stq, Currency::Stq) => ("STQ_USD".to_string(), OrderType::SellTotal),
+            (Currency::Stq, Currency::Eth, Currency::Eth) => ("ETH_USD".to_string(), OrderType::SellTotal),
             _ => return Box::new(future::ok(amount)),
         };
 
+        let exmo_client = self.exmo_client.clone();
+        let quantity = amount_currency.to_f64(amount);
         Box::new(
             exmo_client
                 .get_book(pair)
