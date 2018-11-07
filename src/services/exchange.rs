@@ -202,7 +202,7 @@ impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
         let amount = input.actual_amount;
         let amount_currency = input.amount_currency;
         Box::new(self.auth_service.authenticate(token).and_then(move |user| {
-            validate(input.from, input.actual_amount, limits)
+            validate(input.amount_currency, input.actual_amount, limits)
                 .map_err(|e| ectx!(err e.clone(), ErrorKind::InvalidInput(e) => input))
                 .into_future()
                 .and_then(move |_| {

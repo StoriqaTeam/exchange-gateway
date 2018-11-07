@@ -116,13 +116,13 @@ impl Default for CreateSellOrder {
     }
 }
 
-pub fn validate(from: Currency, amount: Amount, limits: CurrenciesLimits) -> Result<(), ValidationErrors> {
-    let limit = match from {
+pub fn validate(amount_currency: Currency, amount: Amount, limits: CurrenciesLimits) -> Result<(), ValidationErrors> {
+    let limit = match amount_currency {
         Currency::Btc => limits.btc,
         Currency::Eth => limits.eth,
         Currency::Stq => limits.stq,
     };
-    let quantity = from.to_f64(amount);
+    let quantity = amount_currency.to_f64(amount);
 
     let mut errors = ValidationErrors::new();
     if quantity < limit.min || quantity > limit.max {
@@ -130,8 +130,8 @@ pub fn validate(from: Currency, amount: Amount, limits: CurrenciesLimits) -> Res
             code: Cow::from("limit"),
             message: Some(Cow::from(format!(
                 "Amount should be between {} and {}",
-                from.from_f64(limit.min),
-                from.from_f64(limit.max)
+                amount_currency.from_f64(limit.min),
+                amount_currency.from_f64(limit.max)
             ))),
             params: HashMap::new(),
         };
