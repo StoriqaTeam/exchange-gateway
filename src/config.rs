@@ -4,7 +4,7 @@ use sentry_integration::SentryConfig;
 
 use config_crate::{Config as RawConfig, ConfigError, Environment, File};
 
-use logger::GrayLogConfig;
+use logger::{FileLogConfig, GrayLogConfig};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
@@ -17,6 +17,7 @@ pub struct Config {
     pub limits: CurrenciesLimits,
     pub sentry: Option<SentryConfig>,
     pub graylog: Option<GrayLogConfig>,
+    pub filelog: Option<FileLogConfig>,
 }
 
 #[derive(Debug, Deserialize, Clone)]

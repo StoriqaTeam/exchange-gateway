@@ -23,4 +23,6 @@ test_environment = true
 [graylog]
 addr = "graylog-udp.internal.stq.cloud:32303"
 cluster = "pay-nightly.stq.cloud"
-  
+
+[filelog]
+path = "exchange.log"
