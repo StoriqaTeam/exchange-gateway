@@ -1,5 +1,3 @@
-use chrono::NaiveDateTime;
-
 use diesel;
 
 use super::error::*;
