@@ -268,3 +268,42 @@ where
 
     deserializer.deserialize_any(StringTof64)
 }
+
+fn deserialize_hash_str_to_f64<'de, D>(deserializer: D) -> Result<HashMap<String, f64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    struct Wrapper(#[serde(deserialize_with = "string_to_f64")] f64);
+
+    let v = HashMap::<String, Wrapper>::deserialize(deserializer)?;
+    Ok(v.into_iter().map(|(k, Wrapper(v))| (k, v)).collect())
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ExmoUserInfo {
+    #[serde(deserialize_with = "deserialize_hash_str_to_f64")]
+    pub balances: HashMap<String, f64>,
+    #[serde(deserialize_with = "deserialize_hash_str_to_f64")]
+    pub reserved: HashMap<String, f64>,
+}
+
+impl ExmoUserInfo {
+    pub fn get_balance(&self, currency: Currency) -> f64 {
+        self.balances.get(&currency.to_string().to_uppercase()).cloned().unwrap_or_default()
+    }
+}
+
+impl Default for ExmoUserInfo {
+    fn default() -> Self {
+        let mut balances = HashMap::new();
+        balances.insert("BTC".to_string(), 100000f64);
+        balances.insert("ETH".to_string(), 100000f64);
+        balances.insert("STQ".to_string(), 100000000f64);
+        let mut reserved = HashMap::new();
+        reserved.insert("BTC".to_string(), 1f64);
+        reserved.insert("ETH".to_string(), 1f64);
+        reserved.insert("STQ".to_string(), 1000f64);
+        Self { balances, reserved }
+    }
+}
