@@ -53,6 +53,34 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
         }
     }
 
+    fn check_balance(&self, from: Currency, amount: Amount, amount_currency: Currency, current_rate: f64) -> ServiceFuture<()> {
+        let exmo_client = self.exmo_client.clone();
+        let db_executor = self.db_executor.clone();
+        let sell_orders_repo = self.sell_orders_repo.clone();
+
+        let needed_quantity = if amount_currency == from {
+            amount_currency.to_f64(amount)
+        } else {
+            amount_currency.to_f64(amount) / current_rate
+        };
+        let currency = from;
+        Box::new(db_executor.execute_transaction_with_isolation(Isolation::Serializable, move || {
+            let mut core = Core::new().unwrap();
+            let data = Some(json!({"currency": currency, "needed_quantity": needed_quantity, "status": "Check user balance on exmo"}));
+            let nonce = sell_orders_repo
+                .create(NewSellOrder::new(data.clone()))
+                .map_err(ectx!(try convert => data))
+                .map(|c| c.id)?;
+            let user_info = core.run(exmo_client.get_user_balances(nonce.inner()).map_err(ectx!(try convert => nonce)))?;
+            let users_balance = user_info.get_balance(currency);
+            if users_balance < needed_quantity {
+                Err(ectx!(err ErrorContext::NotEnoughCurrencyBalance, ErrorKind::Internal => users_balance, needed_quantity, currency))
+            } else {
+                Ok(())
+            }
+        }))
+    }
+
     fn get_current_rate(&self, from: Currency, to: Currency, amount: Amount, amount_currency: Currency) -> ServiceFuture<f64> {
         let exmo_client = self.exmo_client.clone();
         let amount = from.to_f64(amount);
@@ -170,6 +198,7 @@ impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
         let to = input.to;
         let service = self.clone();
         let service2 = self.clone();
+        let service3 = self.clone();
         let amount = input.actual_amount;
         let amount_currency = input.amount_currency;
         Box::new(self.auth_service.authenticate(token).and_then(move |user| {
@@ -204,7 +233,11 @@ impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
                                             // if current_rate is 9, rate_for_user (exchange.rate) is 9, safety threshold = 0,05:
                                             // then safety_rate = 9 / 1,05, it is lower then rate for user - we loose, Error!
                                             if safety_rate > users_rate {
-                                                Either::A(service2.start_selling(exchange, input_clone.actual_amount))
+                                                Either::A(
+                                                    service2
+                                                        .check_balance(from, amount, amount_currency, current_rate)
+                                                        .and_then(move |_| service3.start_selling(exchange, input_clone.actual_amount)),
+                                                )
                                             } else {
                                                 Either::B(future::err(
                                                     ectx!(err ErrorContext::NoSuchRate, ErrorKind::Internal => safety_rate, users_rate),

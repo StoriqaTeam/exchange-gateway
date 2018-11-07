@@ -38,6 +38,8 @@ pub enum ErrorContext {
     NoSuchRate,
     #[fail(display = "service error context - invalid auth token")]
     InvalidToken,
+    #[fail(display = "service error context - not enough amount on users balance in exmo")]
+    NotEnoughCurrencyBalance,
 }
 
 derive_error_impls!();
