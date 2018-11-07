@@ -4,6 +4,8 @@ use sentry_integration::SentryConfig;
 
 use config_crate::{Config as RawConfig, ConfigError, Environment, File};
 
+use logger::GrayLogConfig;
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
     pub server: Server,
@@ -14,6 +16,7 @@ pub struct Config {
     pub exchange_options: Options,
     pub limits: CurrenciesLimits,
     pub sentry: Option<SentryConfig>,
+    pub graylog: Option<GrayLogConfig>,
 }
 
 #[derive(Debug, Deserialize, Clone)]

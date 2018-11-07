@@ -35,3 +35,7 @@ test_environment = false
   [limits.eth]
   min = 0.01
   max = 10
+
+[graylog]
+addr = "graylog-udp.internal.stq.cloud:32303"
+cluster = "nightly.stq.cloud"
