@@ -83,7 +83,7 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
 
     fn get_current_rate(&self, from: Currency, to: Currency, amount: Amount, amount_currency: Currency) -> ServiceFuture<f64> {
         let exmo_client = self.exmo_client.clone();
-        let amount = from.to_f64(amount);
+        let amount = amount_currency.to_f64(amount);
         let currencies_exchange = get_exmo_type(from, to, amount_currency);
         Box::new(
             iter_ok::<_, Error>(currencies_exchange)
@@ -109,7 +109,7 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
     /// though when amount_currency is equal to `to` we first need to know how much USD we need to buy
     fn recalc_default_quantity(&self, from: Currency, to: Currency, amount: Amount, amount_currency: Currency) -> ServiceFuture<Amount> {
         let exmo_client = self.exmo_client.clone();
-        let quantity = from.to_f64(amount);
+        let quantity = amount_currency.to_f64(amount);
         let (pair, order_type) = match (from, to, amount_currency) {
             (Currency::Eth, Currency::Stq, Currency::Stq) => ("STQ_USD".to_string(), OrderType::BuyTotal),
             (Currency::Stq, Currency::Eth, Currency::Eth) => ("ETH_USD".to_string(), OrderType::BuyTotal),
@@ -144,7 +144,7 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
                     let mut core = Core::new().unwrap();
                     get_exmo_type(from, to, amount_currency)
                         .into_iter()
-                        .try_fold(from.to_f64(start_quantity), move |quantity, currency_exchange| {
+                        .try_fold(amount_currency.to_f64(start_quantity), move |quantity, currency_exchange| {
                             let (pair, order_type) = currency_exchange;
                             let pair_clone = pair.clone();
                             let data = Some(json!({"quantity": quantity, "pair": pair, "order_type": order_type ,"status": "Creating order"}));
