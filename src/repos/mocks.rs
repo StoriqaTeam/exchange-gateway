@@ -1,5 +1,5 @@
+use chrono::NaiveDateTime;
 use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
 
 use super::error::*;
 use super::exchange::*;
@@ -27,8 +27,8 @@ impl UsersRepo for UsersRepoMock {
             id: payload.id,
             name: payload.name,
             authentication_token: payload.authentication_token,
-            created_at: SystemTime::now(),
-            updated_at: SystemTime::now(),
+            created_at: ::chrono::Utc::now().naive_utc(),
+            updated_at: ::chrono::Utc::now().naive_utc(),
         };
         data.push(res.clone());
         Ok(res)

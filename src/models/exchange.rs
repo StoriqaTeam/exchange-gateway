@@ -1,6 +1,6 @@
+use chrono::NaiveDateTime;
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::time::SystemTime;
 
 use validator::{Validate, ValidationError, ValidationErrors};
 
@@ -14,11 +14,11 @@ pub struct Exchange {
     pub from_: Currency,
     pub to_: Currency,
     pub amount: Amount,
-    pub expiration: SystemTime,
+    pub expiration: NaiveDateTime,
     pub rate: f64,
     pub user_id: UserId,
-    pub created_at: SystemTime,
-    pub updated_at: SystemTime,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
     pub amount_currency: Currency,
 }
 
@@ -29,11 +29,11 @@ impl Default for Exchange {
             from_: Currency::Eth,
             to_: Currency::Btc,
             amount: Amount::default(),
-            expiration: SystemTime::now(),
+            expiration: ::chrono::Utc::now().naive_utc(),
             rate: 0.34343,
             user_id: UserId::generate(),
-            created_at: SystemTime::now(),
-            updated_at: SystemTime::now(),
+            created_at: ::chrono::Utc::now().naive_utc(),
+            updated_at: ::chrono::Utc::now().naive_utc(),
             amount_currency: Currency::Eth,
         }
     }
@@ -62,7 +62,7 @@ pub struct NewExchange {
     pub from_: Currency,
     pub to_: Currency,
     pub amount: Amount,
-    pub expiration: SystemTime,
+    pub expiration: NaiveDateTime,
     pub rate: f64,
     pub user_id: UserId,
     pub amount_currency: Currency,
@@ -75,7 +75,7 @@ impl Default for NewExchange {
             from_: Currency::Eth,
             to_: Currency::Btc,
             amount: Amount::default(),
-            expiration: SystemTime::now(),
+            expiration: ::chrono::Utc::now().naive_utc(),
             rate: 0.34343,
             user_id: UserId::generate(),
             amount_currency: Currency::Eth,
@@ -175,7 +175,7 @@ pub struct GetRate {
 }
 
 impl NewExchange {
-    pub fn new(req: GetRate, expiration: SystemTime, rate: f64, user_id: UserId) -> Self {
+    pub fn new(req: GetRate, expiration: NaiveDateTime, rate: f64, user_id: UserId) -> Self {
         Self {
             id: ExchangeId::generate(),
             from_: req.from,

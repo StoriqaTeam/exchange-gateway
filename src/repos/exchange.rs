@@ -1,4 +1,4 @@
-use std::time::SystemTime;
+use chrono::NaiveDateTime;
 
 use diesel;
 
@@ -36,7 +36,7 @@ impl<'a> ExchangesRepo for ExchangesRepoImpl {
                 .filter(from_.eq(req.from))
                 .filter(to_.eq(req.to))
                 .filter(amount.ge(req.actual_amount))
-                .filter(expiration.ge(SystemTime::now()))
+                .filter(expiration.ge(::chrono::Utc::now().naive_utc()))
                 .limit(1)
                 .get_result(conn)
                 .optional()
