@@ -172,6 +172,8 @@ components:
           $ref: '#/components/schemas/TimeStamp'
         updatedAt:
           $ref: '#/components/schemas/TimeStamp'
+        amountCurrency:
+          $ref: '#/components/schemas/Currency'
     Value:
       type: number
       description: Monetary value - either fiat or blockchain

@@ -51,6 +51,9 @@ pub struct ExchangeResponse {
     pub amount: Amount,
     pub expiration: NaiveDateTime,
     pub rate: f64,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub amount_currency: Currency,
 }
 
 impl From<Exchange> for ExchangeResponse {
@@ -62,6 +65,9 @@ impl From<Exchange> for ExchangeResponse {
             amount: ex.amount,
             expiration: ex.expiration,
             rate: ex.rate,
+            created_at: ex.created_at,
+            updated_at: ex.updated_at,
+            amount_currency: ex.amount_currency,
         }
     }
 }
