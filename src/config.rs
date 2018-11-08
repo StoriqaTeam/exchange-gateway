@@ -61,6 +61,8 @@ pub struct CurrenciesLimits {
     pub stq: Limits,
     pub btc: Limits,
     pub eth: Limits,
+    pub usd: Limits,
+    pub rub: Limits,
 }
 
 #[derive(Debug, Deserialize, Clone)]
