@@ -87,27 +87,55 @@ impl HttpClient for HttpClientImpl {
     }
     fn get(&self, uri: String) -> Box<Future<Item = Response<Body>, Error = Error> + Send> {
         let cli = self.cli.clone();
-        Box::new(
-            uri.clone()
-                .parse()
-                .map_err(|_| ectx!(err ErrorSource::Hyper, ErrorKind::Internal => uri))
-                .into_future()
-                .and_then(move |uri| cli.get(uri).map_err(|_| ectx!(err ErrorSource::Hyper, ErrorKind::Internal)))
-                .and_then(|resp| {
-                    if resp.status().is_client_error() || resp.status().is_server_error() {
-                        match resp.status().as_u16() {
-                            400 => Err(ectx!(err ErrorSource::Server, ErrorKind::BadRequest)),
-                            401 => Err(ectx!(err ErrorSource::Server, ErrorKind::Unauthorized)),
-                            404 => Err(ectx!(err ErrorSource::Server, ErrorKind::NotFound)),
-                            500 => Err(ectx!(err ErrorSource::Server, ErrorKind::Internal)),
-                            502 => Err(ectx!(err ErrorSource::Server, ErrorKind::BadGateway)),
-                            504 => Err(ectx!(err ErrorSource::Server, ErrorKind::GatewayTimeout)),
-                            _ => Err(ectx!(err ErrorSource::Server, ErrorKind::UnknownServerError)),
-                        }
-                    } else {
-                        Ok(resp)
-                    }
-                }),
-        )
+        let level = log::max_level();
+        let fut = if level == Level::Debug || level == Level::Trace {
+            Either::A(
+                uri.clone()
+                    .parse()
+                    .map_err(|_| ectx!(err ErrorSource::Hyper, ErrorKind::Internal => uri))
+                    .into_future()
+                    .and_then(move |uri| {
+                        debug!("HttpClient, sent request GET {}", uri);
+                        cli.get(uri).map_err(|_| ectx!(err ErrorSource::Hyper, ErrorKind::Internal))
+                    }).and_then(|resp| {
+                        let (parts, body) = resp.into_parts();
+                        read_body(body)
+                            .map_err(ectx!(ErrorSource::Hyper, ErrorKind::Internal))
+                            .map(|body| (parts, body))
+                    }).map(|(parts, body)| {
+                        debug!(
+                            "HttpClient, recieved response with status {} headers: {:#?} and body: {:?}",
+                            parts.status.as_u16(),
+                            parts.headers,
+                            String::from_utf8(body.clone()).ok()
+                        );
+                        Response::from_parts(parts, body.into())
+                    }),
+            )
+        } else {
+            Either::B(
+                uri.clone()
+                    .parse()
+                    .map_err(|_| ectx!(err ErrorSource::Hyper, ErrorKind::Internal => uri))
+                    .into_future()
+                    .and_then(move |uri| cli.get(uri).map_err(ectx!(ErrorSource::Hyper, ErrorKind::Internal))),
+            )
+        };
+
+        Box::new(fut.and_then(|resp| {
+            if resp.status().is_client_error() || resp.status().is_server_error() {
+                match resp.status().as_u16() {
+                    400 => Err(ectx!(err ErrorSource::Server, ErrorKind::BadRequest)),
+                    401 => Err(ectx!(err ErrorSource::Server, ErrorKind::Unauthorized)),
+                    404 => Err(ectx!(err ErrorSource::Server, ErrorKind::NotFound)),
+                    500 => Err(ectx!(err ErrorSource::Server, ErrorKind::Internal)),
+                    502 => Err(ectx!(err ErrorSource::Server, ErrorKind::BadGateway)),
+                    504 => Err(ectx!(err ErrorSource::Server, ErrorKind::GatewayTimeout)),
+                    _ => Err(ectx!(err ErrorSource::Server, ErrorKind::UnknownServerError)),
+                }
+            } else {
+                Ok(resp)
+            }
+        }))
     }
 }
