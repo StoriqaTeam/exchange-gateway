@@ -97,13 +97,11 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
                                     .and_then(move |book| book.get_rate(quantity, order_type))
                                     .map_err(ectx!(convert => from, to, quantity))
                                     .and_then(move |mut res| {
-                                        debug!(" res = {}", res);
                                         if need_revert(order_type) {
                                             res = 1f64 / res;
                                         };
                                         let new_rate = rate * res;
                                         let new_quantity = new_rate * quantity;
-                                        debug!(" new_rate = {}", new_rate);
                                         Ok((new_quantity, new_rate)) as Result<(f64, f64), Error>
                                     })
                             },
