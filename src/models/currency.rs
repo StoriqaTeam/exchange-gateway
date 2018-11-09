@@ -15,6 +15,8 @@ pub enum Currency {
     Eth,
     Stq,
     Btc,
+    Usd,
+    Rub,
 }
 
 impl FromSql<VarChar, Pg> for Currency {
@@ -23,6 +25,8 @@ impl FromSql<VarChar, Pg> for Currency {
             Some(b"eth") => Ok(Currency::Eth),
             Some(b"stq") => Ok(Currency::Stq),
             Some(b"btc") => Ok(Currency::Btc),
+            Some(b"usd") => Ok(Currency::Usd),
+            Some(b"rub") => Ok(Currency::Rub),
             Some(v) => Err(format!(
                 "Unrecognized enum variant: {:?}",
                 String::from_utf8(v.to_vec()).unwrap_or_else(|_| "Non - UTF8 value".to_string())
@@ -39,6 +43,8 @@ impl ToSql<VarChar, Pg> for Currency {
             Currency::Eth => out.write_all(b"eth")?,
             Currency::Stq => out.write_all(b"stq")?,
             Currency::Btc => out.write_all(b"btc")?,
+            Currency::Usd => out.write_all(b"usd")?,
+            Currency::Rub => out.write_all(b"rub")?,
         };
         Ok(IsNull::No)
     }
@@ -50,11 +56,14 @@ impl Display for Currency {
             Currency::Eth => f.write_str("eth"),
             Currency::Stq => f.write_str("stq"),
             Currency::Btc => f.write_str("btc"),
+            Currency::Usd => f.write_str("usd"),
+            Currency::Rub => f.write_str("rub"),
         }
     }
 }
 
 const MAX_RATE: f64 = 6500.0;
+pub const FIAT_DECIMALS: u128 = 1u128;
 pub const BTC_DECIMALS: u128 = 100_000_000u128;
 pub const ETH_DECIMALS: u128 = 1_000_000_000_000_000_000u128;
 pub const STQ_DECIMALS: u128 = 1_000_000_000_000_000_000u128;
@@ -65,6 +74,8 @@ impl Currency {
             Currency::Btc => BTC_DECIMALS,
             Currency::Eth => ETH_DECIMALS,
             Currency::Stq => STQ_DECIMALS,
+            Currency::Usd => FIAT_DECIMALS,
+            Currency::Rub => FIAT_DECIMALS,
         };
         // Max of all rates
         let max_rate = MAX_RATE as u128;
@@ -81,6 +92,8 @@ impl Currency {
             Currency::Btc => BTC_DECIMALS,
             Currency::Eth => ETH_DECIMALS,
             Currency::Stq => STQ_DECIMALS,
+            Currency::Usd => FIAT_DECIMALS,
+            Currency::Rub => FIAT_DECIMALS,
         };
         let val = value * MAX_RATE;
         let crypto_val = (val as u128) * decimals / (MAX_RATE as u128);

@@ -121,6 +121,8 @@ pub fn validate(amount_currency: Currency, amount: Amount, limits: CurrenciesLim
         Currency::Btc => limits.btc,
         Currency::Eth => limits.eth,
         Currency::Stq => limits.stq,
+        Currency::Usd => limits.usd,
+        Currency::Rub => limits.rub,
     };
     let quantity = amount_currency.to_f64(amount);
 

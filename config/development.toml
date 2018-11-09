@@ -35,6 +35,14 @@ test_environment = false
   [limits.eth]
   min = 0.01
   max = 10
+  
+  [limits.usd]
+  min = 1
+  max = 10000
+  
+  [limits.rub]
+  min = 100
+  max = 10000000
 
 [graylog]
 addr = "graylog-udp.internal.stq.cloud:32303"
