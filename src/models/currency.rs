@@ -62,7 +62,7 @@ impl Display for Currency {
     }
 }
 
-const MAX_RATE: f64 = 6500.0;
+const MAX_RATE: f64 = 6500000.0;
 pub const FIAT_DECIMALS: u128 = 1u128;
 pub const BTC_DECIMALS: u128 = 100_000_000u128;
 pub const ETH_DECIMALS: u128 = 1_000_000_000_000_000_000u128;
@@ -81,8 +81,12 @@ impl Currency {
         let max_rate = MAX_RATE as u128;
         // first multiply by max_rate and then divide by it
         // that is made so that we can use integer division of u128 (f64 is not enough)
-        // and be sure that our error is less that 1 dollar
-        let crypto_value_times_rate: u128 = value.raw() * max_rate / decimals;
+        // and be sure that our error is less that 0,1 cent
+        let mut crypto_value_times_rate: u128 = value.raw() * max_rate / decimals;
+        // if value is less then 0,1 cent then we set it to 0,1 cent
+        if crypto_value_times_rate == 0 {
+            crypto_value_times_rate = 1;
+        }
         // after dividing by decimals we have value small enough to be used as f64
         (crypto_value_times_rate as f64) / (max_rate as f64)
     }
