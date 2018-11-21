@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use chrono::NaiveDateTime;
 
 use models::*;
@@ -69,5 +71,17 @@ impl From<Exchange> for ExchangeResponse {
             updated_at: ex.updated_at,
             amount_currency: ex.amount_currency,
         }
+    }
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct MetricsResponse {
+    pub balances: HashMap<Currency, f64>,
+}
+
+impl From<Metrics> for MetricsResponse {
+    fn from(m: Metrics) -> Self {
+        Self { balances: m.balances }
     }
 }

@@ -1,5 +1,6 @@
 use std::fmt::{self, Display};
 use std::io::Write;
+use std::str::FromStr;
 
 use diesel::deserialize::{self, FromSql};
 use diesel::pg::Pg;
@@ -59,6 +60,22 @@ impl Display for Currency {
             Currency::Usd => f.write_str("usd"),
             Currency::Rub => f.write_str("rub"),
         }
+    }
+}
+
+impl FromStr for Currency {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let cur = match s {
+            "eth" => Currency::Eth,
+            "stq" => Currency::Stq,
+            "btc" => Currency::Btc,
+            "usd" => Currency::Usd,
+            "rub" => Currency::Rub,
+            _ => return Err(()),
+        };
+        Ok(cur)
     }
 }
 
