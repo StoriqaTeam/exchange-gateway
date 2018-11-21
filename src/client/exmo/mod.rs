@@ -176,11 +176,15 @@ pub struct ExmoClientMock {
 impl Default for ExmoClientMock {
     fn default() -> Self {
         let orders = Arc::new(Mutex::new(vec![]));
-        let stq_book = seeds::get_stq_btc();
-        let eth_book = seeds::get_eth_btc();
+        let stq_btc_book = seeds::get_stq_btc();
+        let eth_btc_book = seeds::get_eth_btc();
+        let stq_usd_book = seeds::get_stq_usd();
+        let eth_usd_book = seeds::get_eth_usd();
         let mut data_hash = HashMap::new();
-        data_hash.insert("STQ_BTC".to_string(), stq_book);
-        data_hash.insert("ETH_BTC".to_string(), eth_book);
+        data_hash.insert("STQ_BTC".to_string(), stq_btc_book);
+        data_hash.insert("ETH_BTC".to_string(), eth_btc_book);
+        data_hash.insert("STQ_USD".to_string(), stq_usd_book);
+        data_hash.insert("ETH_USD".to_string(), eth_usd_book);
         let data = Arc::new(Mutex::new(data_hash));
         Self { data, orders }
     }

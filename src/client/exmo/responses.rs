@@ -288,6 +288,17 @@ pub struct ExmoUserInfo {
     pub reserved: HashMap<String, f64>,
 }
 
+impl From<ExmoUserInfo> for Metrics {
+    fn from(ex: ExmoUserInfo) -> Self {
+        let balances = ex
+            .balances
+            .into_iter()
+            .filter_map(|(s, value)| s.to_lowercase().parse::<Currency>().ok().map(|cur| (cur, value)))
+            .collect();
+        Self { balances }
+    }
+}
+
 impl ExmoUserInfo {
     pub fn get_balance(&self, currency: Currency) -> f64 {
         self.balances.get(&currency.to_string().to_uppercase()).cloned().unwrap_or_default()

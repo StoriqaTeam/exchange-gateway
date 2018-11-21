@@ -190,6 +190,7 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
 pub trait ExchangeService: Send + Sync + 'static {
     fn sell(&self, token: AuthenticationToken, input: CreateSellOrder) -> ServiceFuture<SellOrder>;
     fn get_rate(&self, token: AuthenticationToken, input: GetRate) -> ServiceFuture<Exchange>;
+    fn metrics(&self) -> ServiceFuture<Metrics>;
 }
 
 impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
@@ -284,6 +285,22 @@ impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
                         .map_err(ectx!(ErrorKind::Internal => new_exchange))
                 })
             })
+        }))
+    }
+
+    fn metrics(&self) -> ServiceFuture<Metrics> {
+        let exmo_client = self.exmo_client.clone();
+        let db_executor = self.db_executor.clone();
+        let sell_orders_repo = self.sell_orders_repo.clone();
+        Box::new(db_executor.execute_transaction_with_isolation(Isolation::Serializable, move || {
+            let mut core = Core::new().unwrap();
+            let data = Some(json!({"status": "Monitor user balance on exmo"}));
+            let nonce = sell_orders_repo
+                .create(NewSellOrder::new(data.clone()))
+                .map_err(ectx!(try convert => data))
+                .map(|c| c.id)?;
+            core.run(exmo_client.get_user_balances(nonce.inner()).map_err(ectx!(convert => nonce)))
+                .map(From::from)
         }))
     }
 }

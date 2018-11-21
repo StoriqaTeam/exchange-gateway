@@ -46,3 +46,19 @@ pub fn post_exchange(ctx: &Context) -> ControllerFuture {
             }),
     )
 }
+
+pub fn get_metrics(ctx: &Context) -> ControllerFuture {
+    let exchange_service = ctx.exchange_service.clone();
+    let maybe_token = ctx.get_auth_token();
+    Box::new(
+        maybe_token
+            .ok_or_else(|| ectx!(err ErrorContext::Token, ErrorKind::Unauthorized))
+            .into_future()
+            .and_then(move |_| {
+                exchange_service
+                    .metrics()
+                    .map_err(ectx!(convert))
+                    .and_then(|metrics| response_with_model(&MetricsResponse::from(metrics)))
+            }),
+    )
+}

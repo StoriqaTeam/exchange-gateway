@@ -96,6 +96,7 @@ impl Service for ApiService {
                         POST /v1/users => post_users,
                         GET /v1/users/me => get_users_me,
                         POST /v1/exchange => post_exchange,
+                        GET /v1/metrics => get_metrics,
                         POST /v1/rate => post_rate,
                         _ => not_found,
                     };
