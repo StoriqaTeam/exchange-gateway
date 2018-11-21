@@ -20,7 +20,7 @@ size = 1
 expiration = 300 # 5 minutes
 rate_upside = 0.1 # 10%
 safety_threshold = 0.05 # 5%
-test_environment = false
+test_environment = true
 
 [limits]
 
