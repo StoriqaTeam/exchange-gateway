@@ -5,6 +5,7 @@ use time::Duration;
 use futures::future::{self, Either};
 use futures::stream::iter_ok;
 use tokio_core::reactor::Core;
+use validator::{ValidationError, ValidationErrors};
 
 use super::auth::AuthService;
 use super::*;
@@ -219,7 +220,14 @@ impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
                             exchange_repo
                                 .get(input.into())
                                 .map_err(ectx!(try convert => input_clone))?
-                                .ok_or_else(|| ectx!(err ErrorContext::NoExchangeRate, ErrorKind::NotFound => input_clone2))
+                                .ok_or_else(|| {
+                                    let mut errors = ValidationErrors::new();
+                                    let mut error = ValidationError::new("expired");
+                                    error.add_param("message".into(), &"exchange rate already expired".to_string());
+                                    error.add_param("details".into(), &"no details".to_string());
+                                    errors.add("exchange_rate", error);
+                                    ectx!(err ErrorContext::NoExchangeRate, ErrorKind::InvalidInput(errors) => input_clone2)
+                                })
                         }).and_then(move |exchange| {
                             if exchange.user_id != user.id {
                                 Either::A(future::err(
