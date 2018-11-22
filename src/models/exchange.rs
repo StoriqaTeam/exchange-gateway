@@ -1,6 +1,4 @@
 use chrono::NaiveDateTime;
-use std::borrow::Cow;
-use std::collections::HashMap;
 
 use validator::{Validate, ValidationError, ValidationErrors};
 
@@ -128,15 +126,11 @@ pub fn validate(amount_currency: Currency, amount: Amount, limits: CurrenciesLim
 
     let mut errors = ValidationErrors::new();
     if quantity < limit.min || quantity > limit.max {
-        let error = ValidationError {
-            code: Cow::from("limit"),
-            message: Some(Cow::from(format!(
-                "Amount should be between {} and {}",
-                amount_currency.from_f64(limit.min),
-                amount_currency.from_f64(limit.max)
-            ))),
-            params: HashMap::new(),
-        };
+        let mut error = ValidationError::new("limit");
+        error.add_param("message".into(), &"exceeded limits".to_string());
+        error.add_param("details".into(), &"no details".to_string());
+        error.add_param("min".into(), &limit.min.to_string());
+        error.add_param("max".into(), &limit.max.to_string());
         errors.add("actual_amount", error);
     }
     if errors.is_empty() {
