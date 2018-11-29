@@ -3,6 +3,7 @@ use std::fmt;
 use std::num::ParseFloatError;
 
 use serde::de::{self, Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
+use validator::{ValidationError, ValidationErrors};
 
 use super::error::*;
 use models::*;
@@ -115,7 +116,11 @@ impl ExmoBook {
             needed_orders.push(order);
         }
         if needed_quantity > total_quantity {
-            return Err(ectx!(err ErrorSource::NotEnoughAmount, ErrorKind::Internal => needed_quantity, total_quantity));
+            let mut errors = ValidationErrors::new();
+            let mut error = ValidationError::new("not_enough_on_market");
+            error.message = Some("At the moment, the exchange of this amount is not possible, please try again later.".into());
+            errors.add("value", error);
+            return Err(ectx!(err ErrorContext::NotEnoughAmount, ErrorKind::InvalidInput(errors) => needed_quantity, total_quantity));
         }
         let total_amount = needed_orders.iter().fold(0f64, |mut amount, x| {
             amount += x.amount;

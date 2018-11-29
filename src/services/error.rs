@@ -67,6 +67,7 @@ impl From<ExmoClientErrorKind> for ErrorKind {
             ExmoClientErrorKind::Internal => ErrorKind::Internal,
             ExmoClientErrorKind::Unauthorized => ErrorKind::Unauthorized,
             ExmoClientErrorKind::MalformedInput => ErrorKind::MalformedInput,
+            ExmoClientErrorKind::InvalidInput(validation_errors) => ErrorKind::InvalidInput(validation_errors),
         }
     }
 }
