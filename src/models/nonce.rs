@@ -2,22 +2,25 @@ use std::fmt::{self, Display};
 use std::num::ParseIntError;
 use std::str::FromStr;
 
-use diesel::sql_types::Int4 as SqlInt4;
+use diesel::sql_types::Int8 as SqlInt8;
 
 #[derive(Debug, Serialize, Deserialize, FromSqlRow, AsExpression, Clone, Copy, Default, PartialEq)]
-#[sql_type = "SqlInt4"]
-pub struct Nonce(i32);
-derive_newtype_sql!(nonce, SqlInt4, Nonce, Nonce);
+#[sql_type = "SqlInt8"]
+pub struct Nonce(i64);
+derive_newtype_sql!(nonce, SqlInt8, Nonce, Nonce);
 
 impl Nonce {
-    pub fn new(id: i32) -> Self {
+    pub fn new(id: i64) -> Self {
         Nonce(id)
     }
-    pub fn inner(&self) -> i32 {
+    pub fn inner(&self) -> i64 {
         self.0
     }
     pub fn generate() -> Self {
-        Nonce(i32::default())
+        let now = ::chrono::Utc::now().naive_utc();
+        let seconds = now.timestamp();
+        let milis = now.timestamp_subsec_millis();
+        Nonce((seconds * 1_000) + milis as i64)
     }
 }
 

@@ -68,11 +68,12 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
         Box::new(db_executor.execute_transaction_with_isolation(Isolation::Serializable, move || {
             let mut core = Core::new().unwrap();
             let data = Some(json!({"currency": currency, "needed_quantity": needed_quantity, "status": "Check user balance on exmo"}));
-            let nonce = sell_orders_repo
+            sell_orders_repo
                 .create(NewSellOrder::new(data.clone()))
                 .map_err(ectx!(try convert => data))
                 .map(|c| c.id)?;
-            let user_info = core.run(exmo_client.get_user_balances(nonce.inner()).map_err(ectx!(try convert => nonce)))?;
+            let nonce = Nonce::generate();
+            let user_info = core.run(exmo_client.get_user_balances(nonce).map_err(ectx!(try convert => nonce)))?;
             let users_balance = user_info.get_balance(currency);
             if users_balance < needed_quantity {
                 Err(ectx!(err ErrorContext::NotEnoughCurrencyBalance, ErrorKind::Internal => users_balance, needed_quantity, currency))
@@ -154,25 +155,27 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
                             let (pair, order_type) = currency_exchange;
                             let pair_clone = pair.clone();
                             let data = Some(json!({"quantity": quantity, "pair": pair, "order_type": order_type ,"status": "Creating order"}));
-                            let nonce = sell_orders_repo
+                            sell_orders_repo
                                 .create(NewSellOrder::new(data.clone()))
                                 .map_err(ectx!(try convert => data))
                                 .map(|c| c.id)?;
+                            let nonce = Nonce::generate();
                             let order_id = core.run(exmo_client
-                                .create_order(pair.clone(), quantity, order_type, nonce.inner())
+                                .create_order(pair.clone(), quantity, order_type, nonce)
                                 .map_err(ectx!(try convert => pair, quantity, order_type, nonce)))
                                 ?;
 
                             thread::sleep(Duration::milliseconds(200).to_std().unwrap());
 
                             let data = Some(json!({"quantity": quantity, "pair": pair_clone, "order_id": order_id ,"status": "Getting Order info"}));
-                            let nonce = sell_orders_repo
+                            sell_orders_repo
                                 .create(NewSellOrder::new(data.clone()))
                                 .map_err(ectx!(try convert => data))
                                 .map(|c| c.id)?;
 
+                            let nonce = Nonce::generate();
                             let (in_amount, out_amount) = core.run( exmo_client
-                                .get_order_status(order_id, nonce.inner())
+                                .get_order_status(order_id, nonce)
                                 .map_err(ectx!(try convert => order_id, nonce)))
                                 ?;
 
@@ -307,7 +310,7 @@ impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
                 .create(NewSellOrder::new(data.clone()))
                 .map_err(ectx!(try convert => data))
                 .map(|c| c.id)?;
-            core.run(exmo_client.get_user_balances(nonce.inner()).map_err(ectx!(convert => nonce)))
+            core.run(exmo_client.get_user_balances(Nonce::generate()).map_err(ectx!(convert => nonce)))
                 .map(From::from)
         }))
     }

@@ -7,7 +7,7 @@ use schema::sell_orders;
 
 #[derive(Debug, Queryable, Clone)]
 pub struct SellOrderDB {
-    pub id: Nonce,
+    pub id: i32,
     pub data: Option<Value>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
@@ -16,7 +16,7 @@ pub struct SellOrderDB {
 impl Default for SellOrderDB {
     fn default() -> Self {
         Self {
-            id: Nonce::generate(),
+            id: 0,
             data: None,
             created_at: ::chrono::Utc::now().naive_utc(),
             updated_at: ::chrono::Utc::now().naive_utc(),
