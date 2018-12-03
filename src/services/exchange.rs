@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::thread;
 use time::Duration;
 
+use failure::Fail;
 use futures::future::{self, Either};
 use futures::stream::iter_ok;
 use tokio_core::reactor::Core;
@@ -153,37 +154,50 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
                         .into_iter()
                         .try_fold(amount_currency.to_f64(start_quantity), move |quantity, currency_exchange| {
                             let (pair, order_type) = currency_exchange;
-                            let pair_clone = pair.clone();
-                            let data = Some(json!({"quantity": quantity, "pair": pair, "order_type": order_type ,"status": "Creating order"}));
-                            sell_orders_repo
-                                .create(NewSellOrder::new(data.clone()))
-                                .map_err(ectx!(try convert => data))
-                                .map(|c| c.id)?;
-                            let nonce = Nonce::generate();
-                            let order_id = core.run(exmo_client
-                                .create_order(pair.clone(), quantity, order_type, nonce)
-                                .map_err(ectx!(try convert => pair, quantity, order_type, nonce)))
-                                ?;
+                            let mut e: Error= ectx!(err ErrorContext::Internal, ErrorKind::Internal);
+                            for _ in 0..3 {
+                                let pair_clone = pair.clone();
+                                let pair_clone2 = pair.clone();
+                                let data = Some(json!({"quantity": quantity, "pair": pair_clone, "order_type": order_type ,"status": "Creating order"}));
+                                sell_orders_repo
+                                    .create(NewSellOrder::new(data.clone()))
+                                    .map_err(ectx!(try convert => data))
+                                    .map(|c| c.id)?;
 
-                            thread::sleep(Duration::milliseconds(200).to_std().unwrap());
+                                let nonce = Nonce::generate();
+                                let order_id = core.run(exmo_client
+                                    .create_order(pair_clone.clone(), quantity, order_type, nonce)
+                                    .map_err(ectx!(try convert => pair_clone, quantity, order_type, nonce)))
+                                    ?;
 
-                            let data = Some(json!({"quantity": quantity, "pair": pair_clone, "order_id": order_id ,"status": "Getting Order info"}));
-                            sell_orders_repo
-                                .create(NewSellOrder::new(data.clone()))
-                                .map_err(ectx!(try convert => data))
-                                .map(|c| c.id)?;
+                                thread::sleep(Duration::milliseconds(200).to_std().unwrap());
 
-                            let nonce = Nonce::generate();
-                            let (in_amount, out_amount) = core.run( exmo_client
-                                .get_order_status(order_id, nonce)
-                                .map_err(ectx!(try convert => order_id, nonce)))
-                                ?;
+                                let data = Some(json!({"quantity": quantity, "pair": pair_clone2, "order_id": order_id ,"status": "Getting Order info"}));
+                                sell_orders_repo
+                                    .create(NewSellOrder::new(data.clone()))
+                                    .map_err(ectx!(try convert => data))
+                                    .map(|c| c.id)?;
 
-                            let data = Some(json!({"in_amount": in_amount, "out_amount": out_amount, "pair": pair_clone, "order_id": order_id ,"status": "Order info"}));
-                            let _ = sell_orders_repo
-                                .create(NewSellOrder::new(data.clone()));
+                                let nonce = Nonce::generate();
+                                let order_status: Result<_, Error> = core.run( exmo_client
+                                    .get_order_status(order_id, nonce)
+                                    .map_err(ectx!(convert => order_id, nonce)));
 
-                            Ok(in_amount)
+                                match order_status {
+                                    Ok((in_amount, out_amount)) => {
+                                        let data = Some(json!({"in_amount": in_amount, "out_amount": out_amount, "pair": pair_clone2, "order_id": order_id ,"status": "Order info"}));
+                                        let _ = sell_orders_repo
+                                            .create(NewSellOrder::new(data.clone()));
+                                        return Ok(in_amount);
+                                    }
+                                    Err(err) => {
+                                        thread::sleep(Duration::milliseconds(200).to_std().unwrap());
+                                        e = err;
+                                    }
+                                }
+                            }
+                            Err(e)
+
                         })
                 }).map(move |actual_quantity| SellOrder::new(actual_quantity, from, to))
         })
