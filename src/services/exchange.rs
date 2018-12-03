@@ -68,19 +68,33 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
         let currency = from;
         Box::new(db_executor.execute_transaction_with_isolation(Isolation::Serializable, move || {
             let mut core = Core::new().unwrap();
-            let data = Some(json!({"currency": currency, "needed_quantity": needed_quantity, "status": "Check user balance on exmo"}));
-            sell_orders_repo
-                .create(NewSellOrder::new(data.clone()))
-                .map_err(ectx!(try convert => data))
-                .map(|c| c.id)?;
-            let nonce = Nonce::generate();
-            let user_info = core.run(exmo_client.get_user_balances(nonce).map_err(ectx!(try convert => nonce)))?;
-            let users_balance = user_info.get_balance(currency);
-            if users_balance < needed_quantity {
-                Err(ectx!(err ErrorContext::NotEnoughCurrencyBalance, ErrorKind::Internal => users_balance, needed_quantity, currency))
-            } else {
-                Ok(())
+            let mut e: Error= ectx!(err ErrorContext::Internal, ErrorKind::Internal);
+            for _ in 0..3 {
+                let data = Some(json!({"currency": currency, "needed_quantity": needed_quantity, "status": "Check user balance on exmo"}));
+                sell_orders_repo
+                    .create(NewSellOrder::new(data.clone()))
+                    .map_err(ectx!(try convert => data))
+                    .map(|c| c.id)?;
+                let nonce = Nonce::generate();
+
+                let user_info = core.run(exmo_client.get_user_balances(nonce).map_err(ectx!(convert => nonce)));
+                match user_info {
+                    Ok(user_info) => {
+                        let users_balance = user_info.get_balance(currency);
+                        if users_balance < needed_quantity {
+                            return Err(ectx!(err ErrorContext::NotEnoughCurrencyBalance, ErrorKind::Internal => users_balance, needed_quantity, currency));
+                        } else {
+                            return Ok(());
+                        }
+                    }
+                    Err(err) => {
+                        thread::sleep(Duration::milliseconds(200).to_std().unwrap());
+                        e = err;
+                    }
+                }
             }
+            Err(e)
+            
         }))
     }
 
@@ -319,13 +333,26 @@ impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
         let sell_orders_repo = self.sell_orders_repo.clone();
         Box::new(db_executor.execute_transaction_with_isolation(Isolation::Serializable, move || {
             let mut core = Core::new().unwrap();
-            let data = Some(json!({"status": "Monitor user balance on exmo"}));
-            let nonce = sell_orders_repo
-                .create(NewSellOrder::new(data.clone()))
-                .map_err(ectx!(try convert => data))
-                .map(|c| c.id)?;
-            core.run(exmo_client.get_user_balances(Nonce::generate()).map_err(ectx!(convert => nonce)))
-                .map(From::from)
+            let mut e: Error= ectx!(err ErrorContext::Internal, ErrorKind::Internal);
+            for _ in 0..3 {
+                let data = Some(json!({"status": "Monitor user balance on exmo"}));
+                let nonce = sell_orders_repo
+                    .create(NewSellOrder::new(data.clone()))
+                    .map_err(ectx!(try convert => data))
+                    .map(|c| c.id)?;
+                let metrics = core.run(exmo_client.get_user_balances(Nonce::generate()).map_err(ectx!(convert => nonce)))
+                    .map(From::from);
+                match metrics {
+                    Ok(metrics) => {
+                        return Ok(metrics);
+                    }
+                    Err(err) => {
+                        thread::sleep(Duration::milliseconds(200).to_std().unwrap());
+                        e = err;
+                    }
+                }
+            }
+            Err(e)
         }))
     }
 }
