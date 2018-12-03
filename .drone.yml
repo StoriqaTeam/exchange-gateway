@@ -127,7 +127,11 @@ pipeline:
     host: jumpbox.pay.stq.cloud
     command_timeout: 180
     script: |
-      ansible-playbook \
+      cd ~/payments-infra \
+      && git reset --hard \
+      && git fetch \
+      && git pull origin master \
+      && ansible-playbook \
       -i ~/payments-infra/ansible/hosts-production.yml \
       --tags exchange-gateway \
       --extra-vars "pay_exgw_tag=${DRONE_TAG}" \
