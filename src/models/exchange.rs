@@ -127,10 +127,10 @@ pub fn validate(amount_currency: Currency, amount: Amount, limits: CurrenciesLim
     let mut errors = ValidationErrors::new();
     if quantity < limit.min || quantity > limit.max {
         let mut error = ValidationError::new("limit");
-        error.add_param("message".into(), &"exceeded limits".to_string());
-        error.add_param("details".into(), &"no details".to_string());
+        error.message = Some("exceeded limits".into());
         error.add_param("min".into(), &limit.min.to_string());
         error.add_param("max".into(), &limit.max.to_string());
+        error.add_param("currency".into(), &amount_currency.to_string());
         errors.add("actual_amount", error);
     }
     if errors.is_empty() {
