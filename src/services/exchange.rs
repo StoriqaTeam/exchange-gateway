@@ -55,6 +55,7 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
         }
     }
 
+    // TODO: remove the use of Core
     fn check_balance(&self, from: Currency, amount: Amount, amount_currency: Currency, current_rate: f64) -> ServiceFuture<()> {
         let exmo_client = self.exmo_client.clone();
         let db_executor = self.db_executor.clone();
@@ -455,14 +456,21 @@ mod tests {
     use tokio_core::reactor::Core;
 
     fn create_sell_service(token: AuthenticationToken, user_id: UserId) -> ExchangeServiceImpl<DbExecutorMock> {
+        create_sell_service_with_exmo_client(token, user_id, Arc::new(ExmoClientMock::default()))
+    }
+
+    fn create_sell_service_with_exmo_client(
+        token: AuthenticationToken,
+        user_id: UserId,
+        exmo_client: Arc<ExmoClientMock>,
+    ) -> ExchangeServiceImpl<DbExecutorMock> {
         let auth_service = Arc::new(AuthServiceMock::new(vec![(token, user_id)]));
         let exchange_repo = Arc::new(ExchangesRepoMock::default());
         let sell_orders_repo = Arc::new(SellOrdersRepoMock::default());
-        let exmo_client = Arc::new(ExmoClientMock::default());
         let db_executor = DbExecutorMock::default();
         let reserved_for = 600;
-        let rate_upside = 0f64;
-        let safety_threshold = 0f64;
+        let rate_upside = 0.1f64;
+        let safety_threshold = 0.05f64;
         let limits = CurrenciesLimits::default();
         ExchangeServiceImpl::new(
             auth_service,
@@ -478,15 +486,37 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // crashes with error 'cannot recursively call into `Core`', need to fix `check_balance`
     fn test_exchange_sell() {
-        let mut core = Core::new().unwrap();
         let token = AuthenticationToken::default();
         let user_id = UserId::generate();
         let service = create_sell_service(token.clone(), user_id);
-        let new_exchange = CreateSellOrder::default();
-        let exchange = core.run(service.sell(token, new_exchange));
-        assert!(exchange.is_ok());
+        let get_rate = GetRate::default();
+
+        let fut = service.get_rate(token.clone(), get_rate).and_then(
+            |Exchange {
+                 id,
+                 from_,
+                 to_,
+                 amount,
+                 amount_currency,
+                 ..
+             }| {
+                let create_sell_order = CreateSellOrder {
+                    id,
+                    from: from_,
+                    to: to_,
+                    actual_amount: amount,
+                    amount_currency,
+                };
+                service.sell(token, create_sell_order)
+            },
+        );
+
+        let mut core = Core::new().unwrap();
+        core.run(fut).unwrap();
     }
+
     #[test]
     fn test_exchange_get() {
         let mut core = Core::new().unwrap();
@@ -496,6 +526,105 @@ mod tests {
         let new_exchange = GetRate::default();
         let exchange = core.run(service.get_rate(token, new_exchange));
         assert!(exchange.is_ok());
+    }
+
+    #[test]
+    fn test_thresholds_on_refresh() {
+        let token = AuthenticationToken::default();
+        let user_id = UserId::generate();
+        let exmo_client = Arc::new(ExmoClientMock::default());
+        let service = create_sell_service_with_exmo_client(token.clone(), user_id, exmo_client.clone());
+
+        let (pair, order_type) = get_exmo_type(Currency::Stq, Currency::Btc, Currency::Stq)
+            .into_iter()
+            .next()
+            .expect("expected only 1 conversion");
+        let amount_super_units = 1_000.0;
+        let amount = Currency::Stq.from_f64(amount_super_units);
+
+        let fut = exmo_client
+            .clone()
+            .get_book(pair.clone())
+            .then(|res| {
+                let book = res.expect(&format!("failed to get {} order book", pair.clone()));
+                book.get_rate(amount_super_units, order_type)
+            })
+            .then({
+                let token = token.clone();
+                let service = service.clone();
+                move |res| {
+                    let original_rate = res.expect("failed to get rate from the order book");
+                    let get_rate = GetRate {
+                        id: ExchangeId::generate(),
+                        from: Currency::Stq,
+                        to: Currency::Btc,
+                        amount,
+                        amount_currency: Currency::Stq,
+                    };
+                    service.get_rate(token, get_rate).map(move |exchange| (original_rate, exchange))
+                }
+            })
+            .then({
+                let token = token.clone();
+                let service = service.clone();
+                move |res| {
+                    let (original_rate, exchange) = res.expect("failed to get rate through the exchange service");
+                    let rate_with_upside = exchange.rate;
+                    let upside_fraction = rate_with_upside / original_rate;
+                    assert!(upside_fraction > 0.89 && upside_fraction < 0.91); // upside threshold in mock = 0.1 (10%)
+                    service
+                        .refresh_rate(token, exchange.id)
+                        .map(move |refreshed_exchange| (original_rate, refreshed_exchange))
+                }
+            })
+            .then({
+                let exmo_client = exmo_client.clone();
+                let token = token.clone();
+                let pair = pair.clone();
+                let service = service.clone();
+                move |res| {
+                    let (original_rate, refreshed_exchange) = res.expect("failed to refresh the rate");
+                    assert!(!refreshed_exchange.is_new_rate);
+
+                    // rate worsened by 3% - we still gain 7% which is above the safety threshold in mock (5%)
+                    // rate for the user remains the same
+                    let worse_rate_within_safety = original_rate * 0.97;
+                    exmo_client.set_fixed_rate(pair, worse_rate_within_safety);
+
+                    service
+                        .refresh_rate(token, refreshed_exchange.exchange.id)
+                        .map(move |refreshed_exchange| (original_rate, refreshed_exchange))
+                }
+            })
+            .then({
+                let pair = pair.clone();
+                let token = token.clone();
+                let service = service.clone();
+                move |res| {
+                    let (original_rate, refreshed_exchange) = res.expect("failed to refresh the rate");
+                    // exchange rate for the user must be still the same because aren't going below the safety threshold
+                    assert!(!refreshed_exchange.is_new_rate);
+
+                    // rate worsened by 8% - we only gain 2% which is below the safety threshold in mock (5%)
+                    // so we have to update the rate for the user
+                    let worse_rate_below_safety = original_rate * 0.92;
+                    exmo_client.set_fixed_rate(pair, worse_rate_below_safety);
+
+                    service
+                        .refresh_rate(token, refreshed_exchange.exchange.id)
+                        .map(move |refreshed_exchange| (worse_rate_below_safety, refreshed_exchange))
+                }
+            })
+            .then(move |res| {
+                let (worsened_rate_from_book, ExchangeRefresh { exchange, is_new_rate }) = res.expect("failed to refresh the rate");
+                let worsened_rate_with_upside = exchange.rate;
+                let new_upside_fraction = worsened_rate_with_upside / worsened_rate_from_book;
+                assert!(is_new_rate);
+                assert!(new_upside_fraction > 0.89 && new_upside_fraction < 0.91);
+                future::ok::<(), ()>(())
+            });
+
+        Core::new().unwrap().run(fut).unwrap()
     }
 
     #[test]

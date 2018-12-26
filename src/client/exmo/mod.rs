@@ -180,6 +180,16 @@ pub struct ExmoClientMock {
     orders: Arc<Mutex<Vec<ExmoOrder>>>,
 }
 
+impl ExmoClientMock {
+    #[allow(dead_code)]
+    pub fn set_fixed_rate(&self, pair: String, rate: f64) {
+        let new_book = seeds::make_book_for_rate(rate);
+
+        let mut data = self.data.lock().unwrap();
+        (*data).insert(pair, new_book);
+    }
+}
+
 impl Default for ExmoClientMock {
     fn default() -> Self {
         let orders = Arc::new(Mutex::new(vec![]));
