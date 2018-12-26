@@ -1,3 +1,4 @@
+use chrono::NaiveDateTime;
 use std::sync::{Arc, Mutex};
 
 use super::error::*;
@@ -90,12 +91,12 @@ impl ExchangesRepo for ExchangesRepoMock {
         Ok(data.iter().find(|x| x.id == exchange_id).cloned())
     }
 
-    fn refresh(&self, exchange_id: ExchangeId) -> RepoResult<Exchange> {
+    fn update_expiration(&self, exchange_id: ExchangeId, expiration: NaiveDateTime) -> RepoResult<Exchange> {
         let mut data = self.data.lock().unwrap();
         data.iter_mut()
             .find(|x| x.id == exchange_id)
             .map(|x| {
-                x.expiration = ::chrono::Utc::now().naive_utc();
+                x.expiration = expiration;
                 x
             })
             .cloned()

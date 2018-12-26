@@ -342,6 +342,7 @@ impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
         let exchange_repo2 = self.exchange_repo.clone();
         let db_executor = self.db_executor.clone();
         let safety_threshold = self.safety_threshold;
+        let expiration = ::chrono::Utc::now().naive_utc() + Duration::seconds(self.expiration as i64);
         let service = self.clone();
         let service2 = self.clone();
 
@@ -380,7 +381,7 @@ impl<E: DbExecutor> ExchangeService for ExchangeServiceImpl<E> {
                         Either::A(db_executor.execute(move || {
                             let exchange_id = exchange.id.clone();
                             exchange_repo2
-                                .refresh(exchange_id)
+                                .update_expiration(exchange_id, expiration)
                                 .map_err(ectx!(convert => exchange_id))
                                 .map(|exchange| ExchangeRefresh {
                                     exchange,

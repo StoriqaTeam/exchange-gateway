@@ -1,3 +1,4 @@
+use chrono::NaiveDateTime;
 use diesel;
 
 use super::error::*;
@@ -11,7 +12,7 @@ pub trait ExchangesRepo: Send + Sync + 'static {
     fn create(&self, payload: NewExchange) -> RepoResult<Exchange>;
     fn get(&self, req: GetExchange) -> RepoResult<Option<Exchange>>;
     fn get_by_id(&self, exchange_id: ExchangeId) -> RepoResult<Option<Exchange>>;
-    fn refresh(&self, exchange_id: ExchangeId) -> RepoResult<Exchange>;
+    fn update_expiration(&self, exchange_id: ExchangeId, expiration: NaiveDateTime) -> RepoResult<Exchange>;
 }
 
 #[derive(Clone, Default)]
@@ -57,9 +58,9 @@ impl<'a> ExchangesRepo for ExchangesRepoImpl {
         })
     }
 
-    fn refresh(&self, exchange_id: ExchangeId) -> RepoResult<Exchange> {
+    fn update_expiration(&self, exchange_id: ExchangeId, expiration_: NaiveDateTime) -> RepoResult<Exchange> {
         with_tls_connection(|conn| {
-            let command = diesel::update(exchanges.filter(id.eq(exchange_id))).set(expiration.eq(::chrono::Utc::now().naive_utc()));
+            let command = diesel::update(exchanges.filter(id.eq(exchange_id))).set(expiration.eq(expiration_));
 
             command.get_result(conn).map_err(move |e| {
                 let error_kind = ErrorKind::from(&e);
@@ -134,19 +135,24 @@ pub mod tests {
     }
 
     #[test]
-    fn exchanges_refresh() {
+    fn exchanges_update_expiration() {
         let mut core = Core::new().unwrap();
         let db_executor = create_executor();
         let exchanges_repo = ExchangesRepoImpl::default();
-        let unix_epoch = ::chrono::NaiveDateTime::from_timestamp(0, 0);
+        let first_datetime = ::chrono::NaiveDateTime::from_timestamp(0, 0);
+        let second_datetime = ::chrono::NaiveDateTime::from_timestamp(100, 0);
 
-        let mut new_exchange = NewExchange::default();
-        new_exchange.expiration = unix_epoch.clone();
+        let new_exchange = NewExchange {
+            expiration: first_datetime.clone(),
+            ..NewExchange::default()
+        };
 
         let _ = core.run(db_executor.execute_test_transaction::<_, _, error::Error>(move || {
             let exchange = exchanges_repo.create(new_exchange).expect("failed to create rate");
-            let exchange = exchanges_repo.refresh(exchange.id).expect("failed to refresh rate");
-            assert!(unix_epoch < exchange.expiration);
+            let exchange = exchanges_repo
+                .update_expiration(exchange.id, second_datetime)
+                .expect("failed to refresh rate");
+            assert_eq!(second_datetime, exchange.expiration);
             Ok(())
         }));
     }
