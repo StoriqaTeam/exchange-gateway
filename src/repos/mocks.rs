@@ -52,7 +52,8 @@ impl UsersRepo for UsersRepoMock {
                 } else {
                     None
                 }
-            }).nth(0)
+            })
+            .nth(0)
             .cloned();
         Ok(u.unwrap())
     }
@@ -74,6 +75,7 @@ impl ExchangesRepo for ExchangesRepoMock {
         data.push(res.clone());
         Ok(res)
     }
+
     fn get(&self, req: GetExchange) -> RepoResult<Option<Exchange>> {
         let data = self.data.lock().unwrap();
         Ok(data
@@ -81,6 +83,23 @@ impl ExchangesRepo for ExchangesRepoMock {
             .filter(|x| x.from_ == req.from && x.to_ == req.to && x.id == req.id)
             .nth(0)
             .cloned())
+    }
+
+    fn get_by_id(&self, exchange_id: ExchangeId) -> RepoResult<Option<Exchange>> {
+        let data = self.data.lock().unwrap();
+        Ok(data.iter().find(|x| x.id == exchange_id).cloned())
+    }
+
+    fn refresh(&self, exchange_id: ExchangeId) -> RepoResult<Exchange> {
+        let mut data = self.data.lock().unwrap();
+        data.iter_mut()
+            .find(|x| x.id == exchange_id)
+            .map(|x| {
+                x.expiration = ::chrono::Utc::now().naive_utc();
+                x
+            })
+            .cloned()
+            .ok_or(ErrorKind::Internal.into())
     }
 }
 

@@ -53,6 +53,12 @@ impl From<NewExchange> for Exchange {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ExchangeRefresh {
+    pub exchange: Exchange,
+    pub is_new_rate: bool,
+}
+
 #[derive(Debug, Insertable, Validate, Clone)]
 #[table_name = "exchanges"]
 pub struct NewExchange {
