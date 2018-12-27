@@ -76,6 +76,24 @@ impl From<Exchange> for ExchangeResponse {
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct ExchangeRefreshResponse {
+    pub exchange: ExchangeResponse,
+    pub is_new_rate: bool,
+}
+
+impl From<ExchangeRefresh> for ExchangeRefreshResponse {
+    fn from(er: ExchangeRefresh) -> Self {
+        let ExchangeRefresh { exchange, is_new_rate } = er;
+
+        Self {
+            exchange: ExchangeResponse::from(exchange),
+            is_new_rate,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct MetricsResponse {
     pub balances: HashMap<Currency, f64>,
 }

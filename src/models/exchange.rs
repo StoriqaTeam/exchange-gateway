@@ -53,6 +53,12 @@ impl From<NewExchange> for Exchange {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ExchangeRefresh {
+    pub exchange: Exchange,
+    pub is_new_rate: bool,
+}
+
 #[derive(Debug, Insertable, Validate, Clone)]
 #[table_name = "exchanges"]
 pub struct NewExchange {
@@ -173,7 +179,7 @@ pub struct GetRate {
 impl NewExchange {
     pub fn new(req: GetRate, expiration: NaiveDateTime, rate: f64, user_id: UserId) -> Self {
         Self {
-            id: ExchangeId::generate(),
+            id: req.id,
             from_: req.from,
             to_: req.to,
             amount: req.amount,

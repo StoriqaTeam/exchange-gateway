@@ -97,7 +97,8 @@ impl ExmoClientImpl {
             .and_then(|bytes| {
                 let bytes_clone = bytes.clone();
                 String::from_utf8(bytes).map_err(ectx!(ErrorSource::Utf8, ErrorKind::Internal => bytes_clone))
-            }).and_then(|string| serde_json::from_str::<T>(&string).map_err(ectx!(ErrorSource::Json, ErrorKind::Internal => string)))
+            })
+            .and_then(|string| serde_json::from_str::<T>(&string).map_err(ectx!(ErrorSource::Json, ErrorKind::Internal => string)))
     }
 
     fn exec_query_get<T: for<'de> Deserialize<'de> + Send>(&self, query: &str) -> impl Future<Item = T, Error = Error> + Send {
@@ -112,7 +113,8 @@ impl ExmoClientImpl {
             .and_then(|bytes| {
                 let bytes_clone = bytes.clone();
                 String::from_utf8(bytes).map_err(ectx!(ErrorSource::Utf8, ErrorKind::Internal => bytes_clone))
-            }).and_then(|string| serde_json::from_str::<T>(&string).map_err(ectx!(ErrorSource::Json, ErrorKind::Internal => string)))
+            })
+            .and_then(|string| serde_json::from_str::<T>(&string).map_err(ectx!(ErrorSource::Json, ErrorKind::Internal => string)))
     }
 }
 
@@ -176,6 +178,16 @@ impl ExmoClient for ExmoClientImpl {
 pub struct ExmoClientMock {
     data: Arc<Mutex<HashMap<String, ExmoBook>>>,
     orders: Arc<Mutex<Vec<ExmoOrder>>>,
+}
+
+impl ExmoClientMock {
+    #[allow(dead_code)]
+    pub fn set_fixed_rate(&self, pair: String, rate: f64) {
+        let new_book = seeds::make_book_for_rate(rate);
+
+        let mut data = self.data.lock().unwrap();
+        (*data).insert(pair, new_book);
+    }
 }
 
 impl Default for ExmoClientMock {

@@ -95,7 +95,7 @@ pub struct ExmoBook {
 }
 
 impl ExmoBook {
-    /// to get wright rate we first need to choose
+    /// to get right rate we first need to choose
     /// where to look for rates:
     /// if we want to buy, then we are watching sell orders.
     /// if we want to sell, then we are watching buy orders.

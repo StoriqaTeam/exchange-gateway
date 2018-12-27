@@ -1,5 +1,27 @@
 use super::*;
 
+#[allow(dead_code)]
+pub fn make_book_for_rate(rate: f64) -> ExmoBook {
+    ExmoBook {
+        bid_quantity: 1e9,
+        bid_amount: rate * 1e9,
+        bid_top: rate,
+        ask_quantity: 1e9,
+        ask_amount: (1.0 / rate) * 1e9,
+        ask_top: 1.0 / rate,
+        bid: vec![ExmoOrder {
+            price: rate,
+            quantity: 1e9,
+            amount: rate * 1e9,
+        }],
+        ask: vec![ExmoOrder {
+            price: 1.0 / rate,
+            quantity: 1e9,
+            amount: (1.0 / rate) * 1e9,
+        }],
+    }
+}
+
 pub fn get_stq_btc() -> ExmoBook {
     ExmoBook {
         ask_quantity: 8756856.09128234,

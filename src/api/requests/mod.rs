@@ -77,3 +77,15 @@ impl From<PostRateRequest> for GetRate {
         }
     }
 }
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PostRateRefreshRequest {
+    pub exchange_id: ExchangeId,
+}
+
+impl From<PostRateRefreshRequest> for ExchangeId {
+    fn from(req: PostRateRefreshRequest) -> Self {
+        req.exchange_id
+    }
+}

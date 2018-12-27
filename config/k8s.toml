@@ -4,10 +4,10 @@ exmo_api_secret = "S-1f1b712612c94a7ab40f76055d7a731681e2bc6f"
 
 [client]
 dns_threads = 4
-exmo_url = "https://stable.stq.cloud/graphql"
+exmo_url = "https://api.exmo.com/v1"
 
 [database]
-url = "postgresql://exchange-gateway:exchange-gateway@postgres/exchange-gateway"
+url = "postgresql://exchange:exchange@db-postgresql/exchange"
 
 [cpu_pool]
 size = 1
@@ -16,3 +16,30 @@ size = 1
 expiration = 300 # 5 minutes
 rate_upside = 0.1 # 10%
 safety_threshold = 0.05 # 5%
+test_environment = true
+
+[limits]
+
+  [limits.stq]
+  min = 100
+  max = 1000000
+
+  [limits.btc]
+  min = 0.001
+  max = 1
+  
+  [limits.eth]
+  min = 0.01
+  max = 10
+  
+  [limits.usd]
+  min = 1
+  max = 10000
+  
+  [limits.rub]
+  min = 100
+  max = 10000000
+
+[graylog]
+addr = "graylog-udp.internal.stq.cloud:32303"
+cluster = "nightly.stq.cloud"

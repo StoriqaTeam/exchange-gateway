@@ -24,7 +24,30 @@ pub fn post_rate(ctx: &Context) -> ControllerFuture {
                         exchange_service
                             .get_rate(token, input.into())
                             .map_err(ectx!(convert => input_clone))
-                    }).and_then(|exchange| response_with_model(&ExchangeResponse::from(exchange)))
+                    })
+                    .and_then(|exchange| response_with_model(&ExchangeResponse::from(exchange)))
+            }),
+    )
+}
+
+pub fn post_rate_refresh(ctx: &Context) -> ControllerFuture {
+    let exchange_service = ctx.exchange_service.clone();
+    let body = ctx.body.clone();
+    let maybe_token = ctx.get_auth_token();
+
+    Box::new(
+        maybe_token
+            .ok_or_else(|| ectx!(err ErrorContext::Token, ErrorKind::Unauthorized))
+            .into_future()
+            .and_then(move |token| {
+                parse_body::<PostRateRefreshRequest>(body)
+                    .and_then(move |input| {
+                        let input_clone = input.clone();
+                        exchange_service
+                            .refresh_rate(token, input.into())
+                            .map_err(ectx!(convert => input_clone))
+                    })
+                    .and_then(|exchange_refresh| response_with_model(&ExchangeRefreshResponse::from(exchange_refresh)))
             }),
     )
 }
@@ -42,7 +65,8 @@ pub fn post_exchange(ctx: &Context) -> ControllerFuture {
                     .and_then(move |input| {
                         let input_clone = input.clone();
                         exchange_service.sell(token, input.into()).map_err(ectx!(convert => input_clone))
-                    }).and_then(|sell| response_with_model(&SellOrderResponse::from(sell)))
+                    })
+                    .and_then(|sell| response_with_model(&SellOrderResponse::from(sell)))
             }),
     )
 }
