@@ -1,5 +1,7 @@
 mod error;
 
+use std::time::Duration;
+
 use config::Config;
 use failure::Fail;
 use futures::future::Either;
@@ -8,9 +10,12 @@ use hyper;
 use hyper::{client::HttpConnector, Body, Request, Response};
 use hyper_tls::HttpsConnector;
 use log::{self, Level};
+use tokio_timer::Timeout;
 
 use self::error::*;
 use utils::read_body;
+
+const TIMEOUT_SEC: u64 = 5;
 
 pub trait HttpClient: Send + Sync + 'static {
     fn request(&self, req: Request<Body>) -> Box<Future<Item = Response<Body>, Error = Error> + Send>;
@@ -20,20 +25,22 @@ pub trait HttpClient: Send + Sync + 'static {
 #[derive(Clone)]
 pub struct HttpClientImpl {
     cli: hyper::Client<HttpsConnector<HttpConnector>>,
+    timeout_s: u64,
 }
 
 impl HttpClientImpl {
     pub fn new(config: &Config) -> Self {
         let connector = HttpsConnector::new(config.client.dns_threads).unwrap();
-        //connector.https_only(true);
         let cli = hyper::Client::builder().build(connector);
-        Self { cli }
+        let timeout_s = config.client.timeout.unwrap_or(TIMEOUT_SEC);
+        Self { cli, timeout_s }
     }
 }
 
 impl HttpClient for HttpClientImpl {
     fn request(&self, req: Request<Body>) -> Box<Future<Item = Response<Body>, Error = Error> + Send> {
         let cli = self.cli.clone();
+        let timeout_s = Duration::from_secs(self.timeout_s);
         let level = log::max_level();
         let fut = if level == Level::Debug || level == Level::Trace {
             let (parts, body) = req.into_parts();
@@ -49,7 +56,13 @@ impl HttpClient for HttpClientImpl {
                             String::from_utf8(body.clone()).ok()
                         );
                         let req = Request::from_parts(parts, body.into());
-                        cli.request(req).map_err(ectx!(ErrorSource::Hyper, ErrorKind::Internal))
+                        Timeout::new(cli.request(req), timeout_s).map_err(|e| {
+                            if e.is_inner() {
+                                ectx!(err e, ErrorSource::Hyper, ErrorKind::Internal)
+                            } else {
+                                ectx!(err ErrorSource::Hyper, ErrorKind::GatewayTimeout)
+                            }
+                        })
                     })
                     .and_then(|resp| {
                         let (parts, body) = resp.into_parts();
@@ -89,6 +102,7 @@ impl HttpClient for HttpClientImpl {
     }
     fn get(&self, uri: String) -> Box<Future<Item = Response<Body>, Error = Error> + Send> {
         let cli = self.cli.clone();
+        let timeout_s = Duration::from_secs(self.timeout_s);
         let level = log::max_level();
         let fut = if level == Level::Debug || level == Level::Trace {
             Either::A(
@@ -98,7 +112,13 @@ impl HttpClient for HttpClientImpl {
                     .into_future()
                     .and_then(move |uri| {
                         debug!("HttpClient, sent request GET {}", uri);
-                        cli.get(uri).map_err(|_| ectx!(err ErrorSource::Hyper, ErrorKind::Internal))
+                        Timeout::new(cli.get(uri), timeout_s).map_err(|e| {
+                            if e.is_inner() {
+                                ectx!(err e, ErrorSource::Hyper, ErrorKind::Internal)
+                            } else {
+                                ectx!(err ErrorSource::Hyper, ErrorKind::GatewayTimeout)
+                            }
+                        })
                     })
                     .and_then(|resp| {
                         let (parts, body) = resp.into_parts();

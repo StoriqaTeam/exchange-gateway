@@ -24,6 +24,7 @@ pub struct Config {
 pub struct Client {
     pub dns_threads: usize,
     pub exmo_url: String,
+    pub timeout: Option<u64>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
