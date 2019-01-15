@@ -5,6 +5,7 @@ use time::Duration;
 use failure::Fail;
 use futures::future::{self, Either};
 use futures::stream::iter_ok;
+use futures_retry::FutureRetry;
 use tokio_core::reactor::Core;
 use validator::{ValidationError, ValidationErrors};
 
@@ -109,8 +110,9 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
                             (amount_currency.to_f64(start_quantity), 1f64),
                             move |(quantity, rate), currency_exchange| {
                                 let (pair, order_type) = currency_exchange;
-                                exmo_client
-                                    .get_book(pair)
+                                let pair_clone = pair.clone();
+                                let exmo_client = exmo_client.clone();
+                                FutureRetry::new(move || exmo_client.get_book(pair_clone.clone()), RetryErrorHandler::new(3, 5))
                                     .and_then(move |book| book.get_rate(quantity, order_type))
                                     .map_err(ectx!(convert => from, to, quantity))
                                     .and_then(move |mut res| {
@@ -168,9 +170,9 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
 
         let exmo_client = self.exmo_client.clone();
         let quantity = amount_currency.to_f64(amount);
+        let pair_clone = pair.clone();
         Box::new(
-            exmo_client
-                .get_book(pair)
+            FutureRetry::new(move || exmo_client.get_book(pair_clone.clone()), RetryErrorHandler::new(3, 5))
                 .and_then(move |book| book.get_rate(quantity, order_type))
                 .map_err(ectx!(convert => from, to, quantity))
                 .and_then(move |mut rate| {
