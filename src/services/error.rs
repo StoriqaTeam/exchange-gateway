@@ -1,7 +1,10 @@
 use std::fmt;
 use std::fmt::Display;
+use std::marker::PhantomData;
+use std::time::Duration as TimeDuration;
 
 use failure::{Backtrace, Context, Fail};
+use futures_retry::{ErrorHandler, RetryPolicy};
 use validator::ValidationErrors;
 
 use client::exmo::ErrorKind as ExmoClientErrorKind;
@@ -68,6 +71,37 @@ impl From<ExmoClientErrorKind> for ErrorKind {
             ExmoClientErrorKind::Unauthorized => ErrorKind::Unauthorized,
             ExmoClientErrorKind::MalformedInput => ErrorKind::MalformedInput,
             ExmoClientErrorKind::InvalidInput(validation_errors) => ErrorKind::InvalidInput(validation_errors),
+        }
+    }
+}
+
+pub struct RetryErrorHandler<OutError> {
+    max_attempts: usize,
+    duration_secs: u64,
+    current_attempt: usize,
+    phantom: PhantomData<OutError>,
+}
+
+impl<OutError> RetryErrorHandler<OutError> {
+    pub fn new(max_attempts: usize, duration_secs: u64) -> Self {
+        RetryErrorHandler {
+            max_attempts,
+            duration_secs,
+            current_attempt: 1,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<OutError> ErrorHandler<OutError> for RetryErrorHandler<OutError> {
+    type OutError = OutError;
+
+    fn handle(&mut self, e: OutError) -> RetryPolicy<OutError> {
+        self.current_attempt += 1;
+        if self.current_attempt > self.max_attempts {
+            RetryPolicy::ForwardError(e)
+        } else {
+            RetryPolicy::WaitRetry(TimeDuration::from_secs(self.duration_secs))
         }
     }
 }

@@ -32,6 +32,7 @@ extern crate validator;
 #[macro_use]
 extern crate sentry;
 extern crate env_logger;
+extern crate futures_retry;
 extern crate gelf;
 extern crate simplelog;
 extern crate tokio_core;
