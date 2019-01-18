@@ -9,7 +9,7 @@ exmo_api_secret = "S-1f1b712612c94a7ab40f76055d7a731681e2bc6f"
 [client]
 dns_threads = 4
 exmo_url = "https://api.exmo.com/v1"
-timeout_s = 5
+timeout_s = 2
 
 [database]
 url = "postgresql://exchange-gateway:exchange-gateway@exchange-gateway-pg/exchange-gateway"

@@ -32,7 +32,7 @@ impl HttpClientImpl {
     pub fn new(config: &Config) -> Self {
         let connector = HttpsConnector::new(config.client.dns_threads).unwrap();
         let cli = hyper::Client::builder().build(connector);
-        let timeout_s = config.client.timeout.unwrap_or(TIMEOUT_SEC);
+        let timeout_s = config.client.timeout_s.unwrap_or(TIMEOUT_SEC);
         Self { cli, timeout_s }
     }
 }

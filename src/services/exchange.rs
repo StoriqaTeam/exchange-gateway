@@ -12,11 +12,15 @@ use validator::{ValidationError, ValidationErrors};
 use super::auth::AuthService;
 use super::*;
 use client::ExmoClient;
-use config::CurrenciesLimits;
+use config::{Config, CurrenciesLimits};
+
 use models::*;
 use prelude::*;
 use repos::{DbExecutor, ExchangesRepo, Isolation, SellOrdersRepo};
 use utils::{get_exmo_type, need_revert};
+
+const RETRY_ATTEMPTS: usize = 3;
+const RETRY_TIMEOUT: u64 = 1;
 
 #[derive(Clone)]
 pub struct ExchangeServiceImpl<E: DbExecutor> {
@@ -29,6 +33,8 @@ pub struct ExchangeServiceImpl<E: DbExecutor> {
     rate_upside: f64,
     safety_threshold: f64,
     limits: CurrenciesLimits,
+    retry_attempts: usize,
+    retry_timeout: u64,
 }
 
 impl<E: DbExecutor> ExchangeServiceImpl<E> {
@@ -38,11 +44,14 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
         sell_orders_repo: Arc<dyn SellOrdersRepo>,
         db_executor: E,
         exmo_client: Arc<dyn ExmoClient>,
-        expiration: u64,
-        rate_upside: f64,
-        safety_threshold: f64,
-        limits: CurrenciesLimits,
+        config: Config,
     ) -> Self {
+        let expiration = config.exchange_options.expiration;
+        let rate_upside = config.exchange_options.rate_upside;
+        let safety_threshold = config.exchange_options.safety_threshold;
+        let retry_attempts = config.client.retry_attempts.unwrap_or(RETRY_ATTEMPTS);
+        let retry_timeout = config.client.retry_timeout.unwrap_or(RETRY_TIMEOUT);
+        let limits = config.limits.clone();
         Self {
             auth_service,
             exchange_repo,
@@ -53,6 +62,8 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
             rate_upside,
             safety_threshold,
             limits,
+            retry_attempts,
+            retry_timeout,
         }
     }
 
@@ -101,6 +112,8 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
 
     fn get_current_rate(&self, from: Currency, to: Currency, amount: Amount, amount_currency: Currency) -> ServiceFuture<f64> {
         let exmo_client = self.exmo_client.clone();
+        let retry_attempts = self.retry_attempts;
+        let retry_timeout = self.retry_timeout;
         let currencies_exchange = get_exmo_type(from, to, amount_currency);
         Box::new(
             self.recalc_default_quantity(from, to, amount, amount_currency)
@@ -112,17 +125,20 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
                                 let (pair, order_type) = currency_exchange;
                                 let pair_clone = pair.clone();
                                 let exmo_client = exmo_client.clone();
-                                FutureRetry::new(move || exmo_client.get_book(pair_clone.clone()), RetryErrorHandler::new(3, 5))
-                                    .and_then(move |book| book.get_rate(quantity, order_type))
-                                    .map_err(ectx!(convert => from, to, quantity))
-                                    .and_then(move |mut res| {
-                                        if need_revert(order_type) {
-                                            res = 1f64 / res;
-                                        };
-                                        let new_rate = rate * res;
-                                        let new_quantity = new_rate * quantity;
-                                        Ok((new_quantity, new_rate)) as Result<(f64, f64), Error>
-                                    })
+                                FutureRetry::new(
+                                    move || exmo_client.get_book(pair_clone.clone()),
+                                    RetryErrorHandler::new(retry_attempts, retry_timeout),
+                                )
+                                .and_then(move |book| book.get_rate(quantity, order_type))
+                                .map_err(ectx!(convert => from, to, quantity))
+                                .and_then(move |mut res| {
+                                    if need_revert(order_type) {
+                                        res = 1f64 / res;
+                                    };
+                                    let new_rate = rate * res;
+                                    let new_quantity = new_rate * quantity;
+                                    Ok((new_quantity, new_rate)) as Result<(f64, f64), Error>
+                                })
                             },
                         )
                         .map(|(_, rate)| rate)
@@ -162,6 +178,8 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
     /// conversion from eth to stq is done through usd,
     /// though when amount_currency is equal to `to` we first need to know how much USD we need to buy
     fn recalc_default_quantity(&self, from: Currency, to: Currency, amount: Amount, amount_currency: Currency) -> ServiceFuture<Amount> {
+        let retry_attempts = self.retry_attempts;
+        let retry_timeout = self.retry_timeout;
         let (pair, order_type) = match (from, to, amount_currency) {
             (Currency::Eth, Currency::Stq, Currency::Stq) => ("STQ_USD".to_string(), OrderType::SellTotal),
             (Currency::Stq, Currency::Eth, Currency::Eth) => ("ETH_USD".to_string(), OrderType::SellTotal),
@@ -172,16 +190,19 @@ impl<E: DbExecutor> ExchangeServiceImpl<E> {
         let quantity = amount_currency.to_f64(amount);
         let pair_clone = pair.clone();
         Box::new(
-            FutureRetry::new(move || exmo_client.get_book(pair_clone.clone()), RetryErrorHandler::new(3, 5))
-                .and_then(move |book| book.get_rate(quantity, order_type))
-                .map_err(ectx!(convert => from, to, quantity))
-                .and_then(move |mut rate| {
-                    if need_revert(order_type) {
-                        rate = 1f64 / rate;
-                    };
-                    let new_quantity = rate * quantity;
-                    Ok(amount_currency.from_f64(new_quantity)) as Result<Amount, Error>
-                }),
+            FutureRetry::new(
+                move || exmo_client.get_book(pair_clone.clone()),
+                RetryErrorHandler::new(retry_attempts, retry_timeout),
+            )
+            .and_then(move |book| book.get_rate(quantity, order_type))
+            .map_err(ectx!(convert => from, to, quantity))
+            .and_then(move |mut rate| {
+                if need_revert(order_type) {
+                    rate = 1f64 / rate;
+                };
+                let new_quantity = rate * quantity;
+                Ok(amount_currency.from_f64(new_quantity)) as Result<Amount, Error>
+            }),
         )
     }
 
